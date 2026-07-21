@@ -6,6 +6,9 @@ const fs = require('fs');
 const token = process.env.BOT_TOKEN;
 const bot = new TelegramBot(token, { polling: true });
 
+// 👉 Your exact channel username from where the post must be copied
+const CHANNEL_USERNAME = '@VipYonoFreeCode';
+
 const POSTS_FILE = 'posts.json';
 const USERS_FILE = 'users.json';
 
@@ -27,7 +30,7 @@ if (fs.existsSync(USERS_FILE)) {
     try {
         botUsers = JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
     } catch (e) {
-        botUsers = [];
+        botUsers = {};
     }
 }
 
@@ -46,53 +49,57 @@ server.listen(PORT, () => {
     console.log(`Server is listening on port ${PORT}`);
 });
 
-// Instantly catch ANY post from your connected channel without restriction and broadcast
+// Strictly capture posts only from your specified channel
 bot.on('channel_post', (msg) => {
-    let text = msg.caption || msg.text || '';
-    const photo = msg.photo ? msg.photo[msg.photo.length - 1].file_id : null;
-    const replyMarkup = msg.reply_markup || null;
+    const chatUsername = msg.chat.username ? `@${msg.chat.username.toLowerCase()}` : '';
     
-    // Process even if it's just a single word like "Hi" or "Y"
-    if (text || photo) {
-        const postContent = {
-            text: text || '',
-            photo: photo,
-            replyMarkup: replyMarkup
-        };
+    // Strict check for your channel username or chat title matching
+    if (chatUsername === CHANNEL_USERNAME.toLowerCase() || (msg.chat.title && msg.chat.title.toLowerCase().includes('vip yono'))) {
+        let text = msg.caption || msg.text || '';
+        const photo = msg.photo ? msg.photo[msg.photo.length - 1].file_id : null;
+        const replyMarkup = msg.reply_markup || null;
+        
+        if (text || photo) {
+            const postContent = {
+                text: text || '',
+                photo: photo,
+                replyMarkup: replyMarkup
+            };
 
-        // Save keywords for instant search support
-        if (text) {
-            const words = text.split(/\s+/);
-            words.forEach(word => {
-                const cleanWord = word.replace(/[^a-z0-9._]/g, '').toLowerCase();
-                if (cleanWord.length >= 1) {
-                    if (!postDatabase[cleanWord]) {
-                        postDatabase[cleanWord] = [];
+            // Save keywords for instant user search support
+            if (text) {
+                const words = text.split(/\s+/);
+                words.forEach(word => {
+                    const cleanWord = word.replace(/[^a-z0-9._]/g, '').toLowerCase();
+                    if (cleanWord.length >= 1) {
+                        if (!postDatabase[cleanWord]) {
+                            postDatabase[cleanWord] = [];
+                        }
+                        const exists = postDatabase[cleanWord].some(p => p.text === text);
+                        if (!exists) {
+                            postDatabase[cleanWord].push(postContent);
+                            savePosts();
+                        }
                     }
-                    const exists = postDatabase[cleanWord].some(p => p.text === text);
-                    if (!exists) {
-                        postDatabase[cleanWord].push(postContent);
-                        savePosts();
-                    }
-                }
+                });
+            }
+
+            if (!postDatabase['all_posts']) {
+                postDatabase['all_posts'] = [];
+            }
+            const globalExists = postDatabase['all_posts'].some(p => p.text === text);
+            if (!globalExists) {
+                postDatabase['all_posts'].push(postContent);
+                savePosts();
+            }
+
+            // Broadcast directly and instantly to all bot users with exact formatting, links, and buttons
+            botUsers.forEach(userId => {
+                sendPostToUser(userId, postContent);
             });
-        }
 
-        if (!postDatabase['all_posts']) {
-            postDatabase['all_posts'] = [];
+            console.log(`Post successfully captured from ${CHANNEL_USERNAME} and broadcasted!`);
         }
-        const globalExists = postDatabase['all_posts'].some(p => p.text === text);
-        if (!globalExists) {
-            postDatabase['all_posts'].push(postContent);
-            savePosts();
-        }
-
-        // Broadcast directly to all bot users instantly with exact formatting, links, and buttons
-        botUsers.forEach(userId => {
-            sendPostToUser(userId, postContent);
-        });
-
-        console.log("Channel post caught and broadcasted successfully!");
     }
 });
 
@@ -169,4 +176,4 @@ bot.on('message', (msg) => {
     }
 });
 
-console.log("Direct unmasked channel sync bot is running successfully...");
+console.log("Channel-locked sync bot is running successfully...");
