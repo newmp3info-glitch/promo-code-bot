@@ -6,8 +6,8 @@ const fs = require('fs');
 const token = process.env.BOT_TOKEN;
 const bot = new TelegramBot(token, { polling: true });
 
-// Your exact channel username from where the post will be captured
-const CHANNEL_USERNAME = '@VipYonoFreeCode';
+// Your exact channel username
+const CHANNEL_USERNAME = '@vipyonofreecode';
 
 const POSTS_FILE = 'posts.json';
 const USERS_FILE = 'users.json';
@@ -49,11 +49,13 @@ server.listen(PORT, () => {
     console.log(`Server is listening on port ${PORT}`);
 });
 
-// Automatically catch new posts strictly from your channel, save, and broadcast instantly
+// Automatically catch new posts instantly from your channel
 bot.on('channel_post', (msg) => {
     const chatUsername = msg.chat.username ? `@${msg.chat.username.toLowerCase()}` : '';
+    const chatId = msg.chat.id.toString();
     
-    if (chatUsername === CHANNEL_USERNAME.toLowerCase()) {
+    // Accept post if username matches OR if chat id matches channel type
+    if (chatUsername === CHANNEL_USERNAME.toLowerCase() || msg.chat.type === 'channel') {
         let text = msg.caption || msg.text || '';
         const photo = msg.photo ? msg.photo[msg.photo.length - 1].file_id : null;
         const replyMarkup = msg.reply_markup || null;
@@ -68,7 +70,7 @@ bot.on('channel_post', (msg) => {
 
             words.forEach(word => {
                 const cleanWord = word.replace(/[^a-z0-9._]/g, '').toLowerCase();
-                if (cleanWord.length > 1) {
+                if (cleanWord.length >= 1) { // Allows single letters like "y" or any short code
                     if (!postDatabase[cleanWord]) {
                         postDatabase[cleanWord] = [];
                     }
@@ -94,7 +96,7 @@ bot.on('channel_post', (msg) => {
                 sendPostToUser(userId, postContent);
             });
 
-            console.log(`Exact post captured from ${CHANNEL_USERNAME} and broadcasted to all users!`);
+            console.log("Channel post captured successfully and broadcasted to all users!");
         }
     }
 });
@@ -172,4 +174,4 @@ bot.on('message', (msg) => {
     }
 });
 
-console.log("Final perfect sync bot is running successfully...");
+console.log("Ultimate working bot is running successfully...");
