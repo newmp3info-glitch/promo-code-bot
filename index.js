@@ -26,7 +26,7 @@ function savePosts() {
 let botUsers = [];
 if (fs.existsSync(USERS_FILE)) {
     try {
-        botUsers = JSON.parse(USERS_FILE, 'utf8');
+        botUsers = JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
     } catch (e) {
         botUsers = [];
     }
@@ -46,80 +46,25 @@ server.listen(PORT, () => {
     console.log(`Server is listening on port ${PORT}`);
 });
 
-// ১০০% নিখুঁত ফরম্যাটিং ফাংশন
+// আপনার দেওয়া নিখুঁত HTML ফরম্যাট হুবহু বজায় রাখার ফাংশন
 function cleanAndFormatText(msg) {
     let text = msg.caption || msg.text || '';
-    let entities = msg.caption_entities || msg.entities || [];
-
-    // ১. টেলিগ্রামের এন্টিটি থেকে আসল ডাউনলোড লিংকটি বের করে নেওয়া
-    let downloadUrl = '';
-    if (entities && entities.length > 0) {
-        entities.forEach(entity => {
-            if (entity.type === 'text_link' && entity.url) {
-                // যে লিংকটি ডাউনলোড বা গেম সম্পর্কিত, সেটি টার্গেট করা
-                if (!entity.url.includes('t.me') && !entity.url.includes('telegram')) {
-                    downloadUrl = entity.url;
-                }
-            }
-        });
-    }
-
-    let lines = text.split('\n');
-    let formattedLines = [];
-    let hashtagsGroup = [];
-
-    lines.forEach(line => {
-        let trimmedLine = line.trim();
-
-        // ২. হ্যাশট্যাগগুলোকে আলাদা করে সংগ্রহ করা যাতে একসাথে ব্লার/হাইড করা যায়
-        if (trimmedLine.startsWith('#') || trimmedLine.includes('#Verified') || trimmedLine.includes('#promocode')) {
-            let tagsInLine = trimmedLine.match(/#\w+/g);
-            if (tagsInLine) {
-                tagsInLine.forEach(tag => hashtagsGroup.push(tag));
-            }
-        } 
-        // ৩. প্রমো কোড থেকে লিংক সরিয়ে সাধারণ টেক্সট বা ব্যাকটিক কোড করা যাতে লিংকে না যায়
-        else if (trimmedLine.toLowerCase().includes('promo code') && (trimmedLine.includes('➔') || trimmedLine.includes('->'))) {
-            let parts = trimmedLine.split(/➔|->/);
-            if (parts.length > 1) {
-                let codePart = parts[1].replace(/<[^>]*>/g, '').trim();
-                // ব্যাকটিক (`) ব্যবহার করলে টেলিগ্রাম এটাকে মনোস্পেস করে, যা ইউজার ট্যাপ করলেই কপি হয় এবং কোনো ব্রাউজারে যায় না
-                formattedLines.push(`${parts[0].trim()} ➔ \`${codePart}\``);
-            } else {
-                formattedLines.push(trimmedLine);
-            }
-        } 
-        // ৪. সাধারণ লাইনগুলো যেমন আছে রাখা
-        else if (trimmedLine !== '') {
-            // যদি লাইনে Download Now থাকে এবং আমাদের কাছে ডাউনলোড লিংক থাকে, তবে সেটি Markdown লিংক বানিয়ে দেওয়া
-            if (downloadUrl && (trimmedLine.toLowerCase().includes('download now') || trimmedLine.toLowerCase().includes('link'))) {
-                // আগের সব টেক্সট বাদ দিয়ে নিখুঁত "Download Now" লিংক তৈরি করা
-                let prefixMatch = trimmedLine.match(/^(.*?)(LINK|Now)/i);
-                let prefix = prefixMatch ? prefixMatch[1] : '';
-                formattedLines.push(`🎁 ${prefix}LINK ➔ [Download Now 📱](${downloadUrl})`);
-            } else {
-                formattedLines.push(trimmedLine);
-            }
-        }
-    });
-
-    // ৫. সব হ্যাশট্যাগগুলোকে একসাথে একটি লাইনে নিয়ে তার দুইপাশে স্পয়লার (`||`) দিয়ে সম্পূর্ণ কালো করে হাইড করে দেওয়া
-    if (hashtagsGroup.length > 0) {
-        let uniqueTags = [...new Set(hashtagsGroup)].join(' ');
-        formattedLines.push(`||${uniqueTags}||`);
-    }
-
-    return formattedLines.join('\n');
+    
+    // যদি মেসেজে অলরেডি এইচটিএমএল ট্যাগ বা ফরম্যাট করা থাকে, তবে বট সেটাকে কোনো প্রকার কাটাছেঁড়া না করে হুবহু রেখে দেবে।
+    // কারণ আপনি নিজেই কোডে <code> এবং <tg-spoiler> সুন্দরভাবে ব্যবহার করছেন।
+    
+    return text;
 }
 
 function savePostContent(msg) {
-    let text = cleanAndFormatText(msg);
+    // টেলিগ্রাম থেকে আসা আসল টেক্সট বা ক্যাপশন সরাসরি সেভ হবে (এইচটিএমএল ট্যাগসহ)
+    let text = msg.caption || msg.text || '';
     const photo = msg.photo ? msg.photo[msg.photo.length - 1].file_id : null;
     const replyMarkup = msg.reply_markup || null;
     
     if (text || photo) {
         const postContent = {
-            text: text || '',
+            text: text,
             photo: photo,
             replyMarkup: replyMarkup || null
         };
@@ -161,11 +106,12 @@ bot.on('channel_post', (msg) => {
 
 function restorePostsToChannel(chatId) {
     if (postDatabase['all_posts'] && postDatabase['all_posts'].length > 0) {
-        bot.sendMessage(chatId, `Starting to restore ${postDatabase['all_posts'].length} posts with perfect formatting...`);
+        bot.sendMessage(chatId, `Starting to restore ${postDatabase['all_posts'].length} posts with original HTML formatting...`);
         
         postDatabase['all_posts'].forEach((post, index) => {
             setTimeout(() => {
-                const options = { parse_mode: "Markdown" };
+                // এখানে Parse Mode হিসেবে "HTML" ব্যবহার করা হয়েছে যাতে আপনার দেওয়া ট্যাগগুলো নিখুঁতভাবে কাজ করে
+                const options = { parse_mode: "HTML" };
                 if (post.replyMarkup) {
                     options.reply_markup = post.replyMarkup;
                 }
@@ -235,7 +181,7 @@ bot.on('message', (msg) => {
 });
 
 function sendPostToUser(userId, post) {
-    const options = { parse_mode: "Markdown" };
+    const options = { parse_mode: "HTML" };
     if (post.replyMarkup) {
         options.reply_markup = post.replyMarkup;
     }
@@ -251,4 +197,4 @@ function sendPostToUser(userId, post) {
     }
 }
 
-console.log("Bot with ultimate fixed formatting is running successfully...");
+console.log("Bot with direct HTML passthrough is running successfully...");
