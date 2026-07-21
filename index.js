@@ -26,7 +26,7 @@ function savePosts() {
 let botUsers = [];
 if (fs.existsSync(USERS_FILE)) {
     try {
-        botUsers = JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
+        botUsers = JSON.parse(USERS_FILE, 'utf8');
     } catch (e) {
         botUsers = [];
     }
@@ -46,49 +46,70 @@ server.listen(PORT, () => {
     console.log(`Server is listening on port ${PORT}`);
 });
 
-// একদম সহজ ও নিখুঁত ফরম্যাটিং ফাংশন (যাতে কোনো এরর না আসে)
+// ১০০% নিখুঁত ফরম্যাটিং ফাংশন
 function cleanAndFormatText(msg) {
     let text = msg.caption || msg.text || '';
     let entities = msg.caption_entities || msg.entities || [];
 
-    // ১. টেলিগ্রামের আসল এন্টি티 থেকে ডাউনলোড লিংক বের করে নেওয়া
+    // ১. টেলিগ্রামের এন্টিটি থেকে আসল ডাউনলোড লিংকটি বের করে নেওয়া
     let downloadUrl = '';
     if (entities && entities.length > 0) {
         entities.forEach(entity => {
             if (entity.type === 'text_link' && entity.url) {
-                downloadUrl = entity.url;
+                // যে লিংকটি ডাউনলোড বা গেম সম্পর্কিত, সেটি টার্গেট করা
+                if (!entity.url.includes('t.me') && !entity.url.includes('telegram')) {
+                    downloadUrl = entity.url;
+                }
             }
         });
     }
 
-    // ২. প্রমো কোড অংশটিকে কপি করার উপযোগী মনোস্পেস কোড (`code`) ফরম্যাটে করা
     let lines = text.split('\n');
-    let formattedLines = lines.map(line => {
-        // হ্যাশট্যাগ লাইন হলে সেগুলোকে স্পয়লার (কালো করে ঢেকে দেওয়া)
-        if (line.trim().startsWith('#') || line.includes('#Verified')) {
-            return `||${line.trim()}||`;
-        }
-        
-        // প্রমো কোড লাইন হলে কোড ব্লক করা যাতে ট্যাপ করলে কপি হয়
-        if (line.toLowerCase().includes('promo code') && line.includes('➔')) {
-            let parts = line.split('➔');
+    let formattedLines = [];
+    let hashtagsGroup = [];
+
+    lines.forEach(line => {
+        let trimmedLine = line.trim();
+
+        // ২. হ্যাশট্যাগগুলোকে আলাদা করে সংগ্রহ করা যাতে একসাথে ব্লার/হাইড করা যায়
+        if (trimmedLine.startsWith('#') || trimmedLine.includes('#Verified') || trimmedLine.includes('#promocode')) {
+            let tagsInLine = trimmedLine.match(/#\w+/g);
+            if (tagsInLine) {
+                tagsInLine.forEach(tag => hashtagsGroup.push(tag));
+            }
+        } 
+        // ৩. প্রমো কোড থেকে লিংক সরিয়ে সাধারণ টেক্সট বা ব্যাকটিক কোড করা যাতে লিংকে না যায়
+        else if (trimmedLine.toLowerCase().includes('promo code') && (trimmedLine.includes('➔') || trimmedLine.includes('->'))) {
+            let parts = trimmedLine.split(/➔|->/);
             if (parts.length > 1) {
-                let codePart = parts[1].trim();
-                return `${parts[0]}➔ \`${codePart}\``;
+                let codePart = parts[1].replace(/<[^>]*>/g, '').trim();
+                // ব্যাকটিক (`) ব্যবহার করলে টেলিগ্রাম এটাকে মনোস্পেস করে, যা ইউজার ট্যাপ করলেই কপি হয় এবং কোনো ব্রাউজারে যায় না
+                formattedLines.push(`${parts[0].trim()} ➔ \`${codePart}\``);
+            } else {
+                formattedLines.push(trimmedLine);
+            }
+        } 
+        // ৪. সাধারণ লাইনগুলো যেমন আছে রাখা
+        else if (trimmedLine !== '') {
+            // যদি লাইনে Download Now থাকে এবং আমাদের কাছে ডাউনলোড লিংক থাকে, তবে সেটি Markdown লিংক বানিয়ে দেওয়া
+            if (downloadUrl && (trimmedLine.toLowerCase().includes('download now') || trimmedLine.toLowerCase().includes('link'))) {
+                // আগের সব টেক্সট বাদ দিয়ে নিখুঁত "Download Now" লিংক তৈরি করা
+                let prefixMatch = trimmedLine.match(/^(.*?)(LINK|Now)/i);
+                let prefix = prefixMatch ? prefixMatch[1] : '';
+                formattedLines.push(`🎁 ${prefix}LINK ➔ [Download Now 📱](${downloadUrl})`);
+            } else {
+                formattedLines.push(trimmedLine);
             }
         }
-        
-        return line;
     });
 
-    text = formattedLines.join('\n');
-
-    // ৩. ডাউনলোড লিংকটি নির্দিষ্ট স্থানে বসিয়ে দেওয়া
-    if (downloadUrl) {
-        text = text.replace(/Download\s*Now/gi, `[Download Now 📱](${downloadUrl})`);
+    // ৫. সব হ্যাশট্যাগগুলোকে একসাথে একটি লাইনে নিয়ে তার দুইপাশে স্পয়লার (`||`) দিয়ে সম্পূর্ণ কালো করে হাইড করে দেওয়া
+    if (hashtagsGroup.length > 0) {
+        let uniqueTags = [...new Set(hashtagsGroup)].join(' ');
+        formattedLines.push(`||${uniqueTags}||`);
     }
 
-    return text;
+    return formattedLines.join('\n');
 }
 
 function savePostContent(msg) {
@@ -140,7 +161,7 @@ bot.on('channel_post', (msg) => {
 
 function restorePostsToChannel(chatId) {
     if (postDatabase['all_posts'] && postDatabase['all_posts'].length > 0) {
-        bot.sendMessage(chatId, `Starting to restore ${postDatabase['all_posts'].length} posts...`);
+        bot.sendMessage(chatId, `Starting to restore ${postDatabase['all_posts'].length} posts with perfect formatting...`);
         
         postDatabase['all_posts'].forEach((post, index) => {
             setTimeout(() => {
@@ -230,4 +251,4 @@ function sendPostToUser(userId, post) {
     }
 }
 
-console.log("Bot with clean stable code is running successfully...");
+console.log("Bot with ultimate fixed formatting is running successfully...");
