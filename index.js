@@ -1,6 +1,9 @@
 
-const TelegramBot = require('node-telegram-bot-api');
+
+        
+    const TelegramBot = require('node-telegram-bot-api');
 const http = require('http');
+const fs = require('fs');
 
 // Replace with your bot token
 const token = '7734842773:AAE9wldHvcrCd9IbBWROj1SoYw4twDfw1zU';
@@ -9,10 +12,25 @@ const bot = new TelegramBot(token, { polling: true });
 // Enter your exact channel username here
 const CHANNEL_USERNAME = '@VipYonoFreeCode';
 
-// Temporary memory to store channel posts automatically
-const postDatabase = {};
+// File to store channel posts permanently so they never get lost
+const DATA_FILE = 'posts.json';
 
-// Dummy server to prevent Render free tier port binding errors
+// Load existing posts from file if available
+let postDatabase = {};
+if (fs.existsSync(DATA_FILE)) {
+    try {
+        postDatabase = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+    } catch (e) {
+        postDatabase = {};
+    }
+}
+
+// Function to save posts permanently
+function saveDatabase() {
+    fs.writeFileSync(DATA_FILE, JSON.stringify(postDatabase, null, 2));
+}
+
+// Dummy server to keep the bot alive on Render free tier
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end('Bot is running successfully!\n');
@@ -23,7 +41,7 @@ server.listen(PORT, () => {
     console.log(`Server is listening on port ${PORT}`);
 });
 
-// Automatically catch new posts only from your specific channel
+// Automatically catch new posts from your channel and save them permanently
 bot.on('channel_post', (msg) => {
     const chatUsername = msg.chat.username ? `@${msg.chat.username}` : '';
     
@@ -40,10 +58,11 @@ bot.on('channel_post', (msg) => {
                     }
                     if (!postDatabase[word].includes(text)) {
                         postDatabase[word].push(text);
+                        saveDatabase(); // Save immediately to file
                     }
                 }
             });
-            console.log("New post cached from your channel!");
+            console.log("New post cached and saved permanently!");
         }
     }
 });
@@ -66,10 +85,9 @@ bot.on('message', (msg) => {
             const latestPost = postDatabase[query][postDatabase[query].length - 1];
             bot.sendMessage(chatId, `Latest Promo Post Found:\n\n${latestPost}`);
         } else {
-            bot.sendMessage(chatId, `No recent promo post found for "${text}". Make sure the bot is an admin in your channel and the keyword matches.`);
+            bot.sendMessage(chatId, `No recent promo post found for "${text}". Make sure you post it in the channel with the exact game name first.`);
         }
     }
 });
 
-console.log("Channel-specific Promo Bot is running in English...");
-
+console.log("Permanent Storage Promo Bot is running in English...");
