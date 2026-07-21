@@ -1,3 +1,4 @@
+
 const TelegramBot = require('node-telegram-bot-api');
 const http = require('http');
 
@@ -5,7 +6,7 @@ const http = require('http');
 const token = '7734842773:AAE9wldHvcrCd9IbBWROj1SoYw4twDfw1zU';
 const bot = new TelegramBot(token, { polling: true });
 
-// Your channel username or ID (where the bot will look for posts)
+// Your channel username
 const CHANNEL_USERNAME = '@VipYonoFreeCode';
 
 // Dummy server to prevent Render free tier port binding errors
@@ -19,23 +20,28 @@ server.listen(PORT, () => {
     console.log(`Server is listening on port ${PORT}`);
 });
 
-// Start command
+// Start command in English
 bot.onText(/\/start/, (msg) => {
     const chatId = msg.chat.id;
     bot.sendMessage(chatId, "Welcome! Please type the name of the game to get your promo code.");
 });
 
-// When user searches for a game name
+// Message handler for game search
 bot.on('message', (msg) => {
     const chatId = msg.chat.id;
     const text = msg.text;
 
     if (text && !text.startsWith('/')) {
-        // Bot receives the game name and checks the channel
-        bot.sendMessage(chatId, `You requested a promo code for "${text}". Checking channel: ${CHANNEL_USERNAME}...`);
+        const gameName = text.trim();
         
-        // Note: Channel searching/fetching logic will search posts from your channel database
+        // Response to user
+        bot.sendMessage(chatId, `Searching promo code for "${gameName}" from channel ${CHANNEL_USERNAME}...`);
+        
+        // Note: To fetch real posts from a public channel via standard Bot API, 
+        // the bot must be added as an Administrator to that channel, 
+        // or you need to maintain a database/JSON file of your promo codes here.
     }
 });
 
-console.log("Promo Code Bot with Channel Support is running in English...");
+console.log("Promo Code Bot is running smoothly...");
+
