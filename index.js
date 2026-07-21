@@ -2,11 +2,9 @@ const TelegramBot = require('node-telegram-bot-api');
 const http = require('http');
 const fs = require('fs');
 
-// Read the bot token safely from Render Environment Variables
 const token = process.env.BOT_TOKEN;
 const bot = new TelegramBot(token, { polling: true });
 
-// 👉 Your exact channel username from where the post must be copied
 const CHANNEL_USERNAME = '@VipYonoFreeCode';
 
 const POSTS_FILE = 'posts.json';
@@ -30,7 +28,7 @@ if (fs.existsSync(USERS_FILE)) {
     try {
         botUsers = JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
     } catch (e) {
-        botUsers = {};
+        botUsers = [];
     }
 }
 
@@ -38,7 +36,6 @@ function saveUsers() {
     fs.writeFileSync(USERS_FILE, JSON.stringify(botUsers, null, 2));
 }
 
-// Dummy server to keep the bot alive on Render
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end('Bot is running successfully!\n');
@@ -49,12 +46,10 @@ server.listen(PORT, () => {
     console.log(`Server is listening on port ${PORT}`);
 });
 
-// Strictly capture posts only from your specified channel
 bot.on('channel_post', (msg) => {
     const chatUsername = msg.chat.username ? `@${msg.chat.username.toLowerCase()}` : '';
     
-    // Strict check for your channel username or chat title matching
-    if (chatUsername === CHANNEL_USERNAME.toLowerCase() || (msg.chat.title && msg.chat.title.toLowerCase().includes('vip yono'))) {
+    if (chatUsername === CHANNEL_USERNAME.toLowerCase()) {
         let text = msg.caption || msg.text || '';
         const photo = msg.photo ? msg.photo[msg.photo.length - 1].file_id : null;
         const replyMarkup = msg.reply_markup || null;
@@ -66,7 +61,6 @@ bot.on('channel_post', (msg) => {
                 replyMarkup: replyMarkup
             };
 
-            // Save keywords for instant user search support
             if (text) {
                 const words = text.split(/\s+/);
                 words.forEach(word => {
@@ -93,17 +87,15 @@ bot.on('channel_post', (msg) => {
                 savePosts();
             }
 
-            // Broadcast directly and instantly to all bot users with exact formatting, links, and buttons
             botUsers.forEach(userId => {
                 sendPostToUser(userId, postContent);
             });
 
-            console.log(`Post successfully captured from ${CHANNEL_USERNAME} and broadcasted!`);
+            console.log(`Post captured from ${CHANNEL_USERNAME} and broadcasted successfully!`);
         }
     }
 });
 
-// Helper function to send post cleanly with exact photo, text, inline buttons and links
 function sendPostToUser(userId, post) {
     const options = {};
     if (post.replyMarkup) {
@@ -125,7 +117,6 @@ function sendPostToUser(userId, post) {
     }
 }
 
-// Handle user interactions and instant search
 bot.on('message', (msg) => {
     const chatId = msg.chat.id;
     const text = msg.text;
@@ -176,4 +167,4 @@ bot.on('message', (msg) => {
     }
 });
 
-console.log("Channel-locked sync bot is running successfully...");
+console.log("Bot is running successfully...");
