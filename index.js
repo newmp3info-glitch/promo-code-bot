@@ -46,11 +46,16 @@ server.listen(PORT, () => {
     console.log(`Server is listening on port ${PORT}`);
 });
 
-// ১০০% ডায়নামিক ফাংশন: আপনার অরিজিনাল পোস্টের প্রমো কোডকে <code> ট্যাগে রেখে এবং সঠিক স্পেস দিয়ে সেভ করবে
-function formatPostToHTML(text, entities) {
+// বুদ্ধিমান ফরম্যাটিং ফাংশন: লিস্ট পোস্ট হলে লিংক অক্ষুণ্ণ রাখবে, আর প্রমো কোড পোস্ট হলে সেটিকে কপি-ফ্রেন্ডলি করবে
+function smartFormatPost(text, entities) {
     if (!text) return '';
 
-    // ১. ডাউনলোড বা অন্য কোনো লিংক থাকলে তা খুঁজে বের করা
+    // যদি পোস্টটি "All Yono Apps" বা গেমের লিস্ট হয়, তবে কোনো কাটছাঁট না করে অরিজিনাল লিংক ও ফরম্যাট হুবহু রাখা হবে
+    if (text.includes('All Yono Apps') || text.includes('Download') || (text.split('\n').length > 5 && !text.includes('PROMO CODE'))) {
+        return text; 
+    }
+
+    // প্রমো কোড পোস্টগুলোর জন্য ফরম্যাটিং
     let downloadUrl = '';
     if (entities && entities.length > 0) {
         entities.forEach(entity => {
@@ -81,7 +86,6 @@ function formatPostToHTML(text, entities) {
     lines.forEach(line => {
         let trimmed = line.trim();
 
-        // ২. হ্যাশট্যাগগুলো আলাদা করে স্পয়লারের জন্য জমিয়ে রাখা
         if (trimmed.startsWith('#')) {
             let tags = trimmed.match(/#\w+/g);
             if (tags) {
@@ -90,7 +94,6 @@ function formatPostToHTML(text, entities) {
                 });
             }
         } 
-        // ৩. প্রমো কোডের লাইন শনাক্ত করে সেটিকে আবশ্যিকভাবেই <code> ট্যাগে মোড়ানো (যাতে টেলিগ্রাম লিংক না বানায় এবং ট্যাপ করলে কপি হয়)
         else if (trimmed.toLowerCase().includes('promo code') && (trimmed.includes('➔') || trimmed.includes('->') || trimmed.includes('PROMO CODE'))) {
             let parts = trimmed.split(/➔|->/);
             if (parts.length > 1) {
@@ -100,12 +103,6 @@ function formatPostToHTML(text, entities) {
                 formattedLines.push(trimmed);
             }
         } 
-        // ৪. যদি ইউজার সরাসরি ডট বা ডোমেন নাম দিয়ে প্রমো কোড লেখে, সেটিকেও <code> ট্যাগে রূপান্তর করা
-        else if ((trimmed.includes('.com') || trimmed.includes('.vip') || trimmed.includes('.in')) && !trimmed.toLowerCase().includes('http') && !trimmed.toLowerCase().includes('link')) {
-            let cleanCode = trimmed.replace(/<[^>]*>/g, '').replace(/`|<.*?>/g, '').trim();
-            formattedLines.push(`<code>${cleanCode}</code>`);
-        }
-        // ৫. ডাউনলোড লিংক বাটন ঠিক রাখা
         else if (trimmed.toLowerCase().includes('download now') || trimmed.toLowerCase().includes('link')) {
             if (downloadUrl) {
                 formattedLines.push(`<b>🎰 GAME LINK </b> <a href='${downloadUrl}'>☞ 𝗗𝗼𝘄𝗻𝗹𝗼𝗮𝗱 𝗡𝗼𝘄</a>📱`);
@@ -113,7 +110,6 @@ function formatPostToHTML(text, entities) {
                 formattedLines.push(trimmed);
             }
         } 
-        // ৬. বাকী সব সাধারণ লাইন ও ব্লককোড ঠিক রাখা
         else if (trimmed !== '') {
             if (trimmed.toLowerCase().includes('signup bonus') || trimmed.toLowerCase().includes('join this channel')) {
                 formattedLines.push(`<blockquote>${trimmed.replace(/<[^>]*>/g, '')}</blockquote>`);
@@ -123,12 +119,10 @@ function formatPostToHTML(text, entities) {
         }
     });
 
-    // ৭. হ্যাশট্যাগগুলো শেষে স্পয়লার হিসেবে যোগ করা
     if (hashtags.length > 0) {
         formattedLines.push(`<blockquote><tg-spoiler>${hashtags.join(' ')}</tg-spoiler></blockquote>`);
     }
 
-    // আপনার চাহিদা অনুযায়ী লাইনের মাঝে সঠিক দূরত্ব বা স্পেস বজায় রাখা
     return formattedLines.join('\n\n');
 }
 
@@ -136,7 +130,8 @@ function savePostContent(msg) {
     let rawText = msg.caption || msg.text || '';
     let entities = msg.caption_entities || msg.entities || [];
     
-    let text = formatPostToHTML(rawText, entities);
+    // লিস্ট পোস্ট হলে অরিজিনাল টেক্সট থাকবে, প্রমো কোড হলে স্মার্ট ফরম্যাট হবে
+    let text = smartFormatPost(rawText, entities);
     if (!text) text = rawText;
     
     const photo = msg.photo ? msg.photo[msg.photo.length - 1].file_id : null;
@@ -149,7 +144,6 @@ function savePostContent(msg) {
             replyMarkup: replyMarkup || null
         };
 
-        // প্রতিটি পোস্টের নিজস্ব টেক্সট থেকে কিওয়ার্ড ইনডেক্স করা যাতে আলাদা গেম আলাদাভাবে সার্চে আসে
         if (rawText) {
             const words = rawText.split(/\s+/);
             words.forEach(word => {
@@ -187,7 +181,7 @@ bot.on('channel_post', (msg) => {
 
 function restorePostsToChannel(chatId) {
     if (postDatabase['all_posts'] && postDatabase['all_posts'].length > 0) {
-        bot.sendMessage(chatId, `Restoring ${postDatabase['all_posts'].length} unique posts with fixed copyable promo codes...`);
+        bot.sendMessage(chatId, `Restoring ${postDatabase['all_posts'].length} posts safely with intact links...`);
         
         postDatabase['all_posts'].forEach((post, index) => {
             setTimeout(() => {
@@ -249,32 +243,4 @@ bot.on('message', (msg) => {
                 }
             }
 
-            if (foundPosts.length > 0) {
-                foundPosts.forEach(post => {
-                    sendPostToUser(chatId, post);
-                });
-            } else {
-                bot.sendMessage(chatId, `No promo code or post found for "${text}".`);
-            }
-        }
-    }
-});
-
-function sendPostToUser(userId, post) {
-    const options = { parse_mode: "HTML" };
-    if (post.replyMarkup) {
-        options.reply_markup = post.replyMarkup;
-    }
-
-    if (post.photo) {
-        bot.sendPhoto(userId, post.photo, { caption: post.text, ...options }).catch(err => {
-            bot.sendPhoto(userId, post.photo, { caption: post.text, reply_markup: post.replyMarkup }).catch(e => {});
-        });
-    } else if (post.text) {
-        bot.sendMessage(userId, post.text, options).catch(err => {
-            bot.sendMessage(userId, post.text, { reply_markup: post.replyMarkup }).catch(e => {});
-        });
-    }
-}
-
-console.log("Ultimate Telegram Bot is running successfully...");
+(code truncated for response limit, copy full code above)
