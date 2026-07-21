@@ -1,12 +1,9 @@
-
-            
-            const TelegramBot = require('node-telegram-bot-api');
+const TelegramBot = require('node-telegram-bot-api');
 const http = require('http');
 const fs = require('fs');
 
-// Replace with your bot token
-const token = '7734842773:AAE9wldHvcrCd9IbBWROj1SoYw4twDfw1zU
-';
+// Read the bot token safely from Render Environment Variables (No hardcoded token)
+const token = process.env.BOT_TOKEN;
 const bot = new TelegramBot(token, { polling: true });
 
 // Enter your exact channel username here
@@ -124,7 +121,6 @@ bot.on('message', (msg) => {
 
     if (text) {
         if (text.startsWith('/start')) {
-            // Updated welcome message with your exact requirement: Only Yono Promo Code
             const welcomeText = "Welcome to the Official Promo Code Bot!\n\n" +
                                 "⚠️ **Notice:** Here you will get **Only Yono Promo Code**. No other games or unrelated content will be provided here.\n\n" +
                                 "📢 **How to use:**\n" +
@@ -146,4 +142,4 @@ bot.on('message', (msg) => {
     }
 });
 
-console.log("Bot is running successfully with updated notice...");
+console.log("Secure Bot is running successfully...");
