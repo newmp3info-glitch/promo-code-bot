@@ -5,7 +5,7 @@ const fs = require('fs');
 const token = process.env.BOT_TOKEN;
 const bot = new TelegramBot(token, { polling: true });
 
-const CHANNEL_USERNAME = '@VipYonoFreeCode';
+const TARGET_CHANNEL_ID = process.env.CHANNEL_ID || '@VipYonoFreeCode';
 
 const POSTS_FILE = 'posts.json';
 const USERS_FILE = 'users.json';
@@ -47,9 +47,11 @@ server.listen(PORT, () => {
 });
 
 bot.on('channel_post', (msg) => {
+    const chatId = msg.chat.id.toString();
     const chatUsername = msg.chat.username ? `@${msg.chat.username.toLowerCase()}` : '';
-    
-    if (chatUsername === CHANNEL_USERNAME.toLowerCase()) {
+    const target = TARGET_CHANNEL_ID.toLowerCase();
+
+    if (chatId === target || chatUsername === target) {
         let text = msg.caption || msg.text || '';
         const photo = msg.photo ? msg.photo[msg.photo.length - 1].file_id : null;
         const replyMarkup = msg.reply_markup || null;
@@ -90,8 +92,6 @@ bot.on('channel_post', (msg) => {
             botUsers.forEach(userId => {
                 sendPostToUser(userId, postContent);
             });
-
-            console.log(`Post captured from ${CHANNEL_USERNAME} and broadcasted successfully!`);
         }
     }
 });
