@@ -46,8 +46,43 @@ server.listen(PORT, () => {
     console.log(`Server is listening on port ${PORT}`);
 });
 
-// পোস্ট এবং তার সাথে থাকা বাটন বা লিংক পারফেক্টলি সেভ করার ফাংশন
-function savePostContent(text, photo, replyMarkup) {
+// টেক্সটের ভেতরের লিংক এবং এন্টিটি (Entities) সঠিকভাবে সংরক্ষণ করার ফাংশন
+function extractTextWithLinks(msg) {
+    let text = msg.caption || msg.text || '';
+    let entities = msg.caption_entities || msg.entities || [];
+
+    if (entities.length > 0 && text) {
+        // এন্টির মাধ্যমে লিংকগুলোকে Markdown ফরম্যাটে রূপান্তর করা যাতে লিংকে ক্লিক করলে কাজ করে
+        let offsetCorrection = 0;
+        entities.forEach(entity => {
+            if (entity.type === 'text_link' && entity.url) {
+                let start = entity.offset + offsetCorrection;
+                let end = start + entity.length;
+                let linkText = text.substring(start, end);
+                let markdownLink = `[${linkText}](${entity.url})`;
+                
+                text = text.substring(0, start) + markdownLink + text.substring(end);
+                offsetCorrection += markdownLink.length - (end - start);
+            } else if (entity.type === 'url') {
+                let start = entity.offset + offsetCorrection;
+                let end = start + entity.length;
+                let urlText = text.substring(start, end);
+                if (!urlText.startsWith('http')) {
+                    let markdownLink = `[${urlText}](https://${urlText})`;
+                    text = text.substring(0, start) + markdownLink + text.substring(end);
+                    offsetCorrection += markdownLink.length - (end - start);
+                }
+            }
+        });
+    }
+    return text;
+}
+
+function savePostContent(msg) {
+    let text = extractTextWithLinks(msg);
+    const photo = msg.photo ? msg.photo[msg.photo.length - 1].file_id : null;
+    const replyMarkup = msg.reply_markup || null;
+    
     if (text || photo) {
         const postContent = {
             text: text || '',
@@ -83,28 +118,20 @@ function savePostContent(text, photo, replyMarkup) {
     }
 }
 
-// চ্যানেলে পোস্ট ফরওয়ার্ড করলে বা দিলে তা বাটনসহ ক্যাচ করবে
 bot.on('channel_post', (msg) => {
     const chatUsername = msg.chat.username ? `@${msg.chat.username.toLowerCase()}` : '';
-    
     if (chatUsername === TARGET_CHANNEL.toLowerCase()) {
-        let text = msg.caption || msg.text || '';
-        const photo = msg.photo ? msg.photo[msg.photo.length - 1].file_id : null;
-        const replyMarkup = msg.reply_markup || null;
-
-        savePostContent(text, photo, replyMarkup);
+        savePostContent(msg);
     }
 });
 
-// রিস্টোর করার সময় বাটন ও লিংক হুবহু ফিরিয়ে দেওয়ার ফাংশন
 function restorePostsToChannel(chatId) {
     if (postDatabase['all_posts'] && postDatabase['all_posts'].length > 0) {
-        bot.sendMessage(chatId, `Starting to restore ${postDatabase['all_posts'].length} posts with buttons to the channel...`);
+        bot.sendMessage(chatId, `Starting to restore ${postDatabase['all_posts'].length} posts with active links to the channel...`);
         
         postDatabase['all_posts'].forEach((post, index) => {
             setTimeout(() => {
-                const options = {};
-                // এখানে আসল ইনলাইন বাটন বা ইউআরএল লিংক যুক্ত করা হলো
+                const options = { parse_mode: "Markdown" };
                 if (post.replyMarkup) {
                     options.reply_markup = post.replyMarkup;
                 }
@@ -112,21 +139,16 @@ function restorePostsToChannel(chatId) {
                 if (post.photo) {
                     bot.sendPhoto(TARGET_CHANNEL, post.photo, { 
                         caption: post.text, 
-                        parse_mode: "Markdown", 
                         ...options 
                     }).catch(err => {
-                        // যদি কোনো কারণে Markdown এ সমস্যা হয়, নরমাল টেক্সটে পাঠাবে যাতে বাটন নষ্ট না হয়
-                        bot.sendPhoto(TARGET_CHANNEL, post.photo, { caption: post.text, ...options }).catch(e => {});
+                        bot.sendPhoto(TARGET_CHANNEL, post.photo, { caption: post.text, reply_markup: post.replyMarkup }).catch(e => {});
                     });
                 } else if (post.text) {
-                    bot.sendMessage(TARGET_CHANNEL, post.text, { 
-                        parse_mode: "Markdown", 
-                        ...options 
-                    }).catch(err => {
-                        bot.sendMessage(TARGET_CHANNEL, post.text, options).catch(e => {});
+                    bot.sendMessage(TARGET_CHANNEL, post.text, options).catch(err => {
+                        bot.sendMessage(TARGET_CHANNEL, post.text, { reply_markup: post.replyMarkup }).catch(e => {});
                     });
                 }
-            }, index * 1200); // প্রতিটি পোস্টের মাঝে ১.২ সেকেন্ড বিরতি রাখা হলো যাতে টেলিগ্রাম ব্লক না করে
+            }, index * 1200);
         });
     } else {
         bot.sendMessage(chatId, "No saved posts found in database to restore!");
@@ -144,11 +166,7 @@ bot.on('message', (msg) => {
 
     if (text) {
         if (text.startsWith('/start')) {
-            const welcomeText = "Welcome to the Official Promo Code Bot!\n\n" +
-                                "⚠️ **Notice:** Here you will get **Only Yono Promo Code**.\n\n" +
-                                "👉 **Commands:**\n" +
-                                "• Type `/restore` to push all saved posts to your channel with original buttons & links.";
-            bot.sendMessage(chatId, welcomeText, { parse_mode: "Markdown" });
+            bot.sendMessage(chatId, "Welcome! Type `/restore` to push all saved posts with active links to your channel.", { parse_mode: "Markdown" });
         } else if (text.startsWith('/restore')) {
             restorePostsToChannel(chatId);
         } else {
@@ -183,24 +201,20 @@ bot.on('message', (msg) => {
 });
 
 function sendPostToUser(userId, post) {
-    const options = {};
+    const options = { parse_mode: "Markdown" };
     if (post.replyMarkup) {
         options.reply_markup = post.replyMarkup;
     }
 
     if (post.photo) {
-        bot.sendPhoto(userId, post.photo, { 
-            caption: post.text, 
-            parse_mode: "Markdown",
-            ...options 
-        }).catch(err => {
-            bot.sendPhoto(userId, post.photo, { caption: post.text, ...options }).catch(e => {});
+        bot.sendPhoto(userId, post.photo, { caption: post.text, ...options }).catch(err => {
+            bot.sendPhoto(userId, post.photo, { caption: post.text, reply_markup: post.replyMarkup }).catch(e => {});
         });
     } else if (post.text) {
-        bot.sendMessage(userId, post.text, { parse_mode: "Markdown", ...options }).catch(err => {
-            bot.sendMessage(userId, post.text, options).catch(e => {});
+        bot.sendMessage(userId, post.text, options).catch(err => {
+            bot.sendMessage(userId, post.text, { reply_markup: post.replyMarkup }).catch(e => {});
         });
     }
 }
 
-console.log("Bot with full button & link support is running successfully...");
+console.log("Bot with active hyperlink restoration is running successfully...");
