@@ -46,20 +46,34 @@ server.listen(PORT, () => {
     console.log(`Server is listening on port ${PORT}`);
 });
 
-// ফরম্যাটিং ফাংশন: প্রমো কোড কপি-সক্ষম (monospaced) করা এবং হ্যাশট্যাগগুলো স্পয়লার (কালো/ঢাকা) করে দেওয়া
+// নিখুঁত ফরম্যাটিং ফাংশন
 function cleanAndFormatText(msg) {
     let text = msg.caption || msg.text || '';
     let entities = msg.caption_entities || msg.entities || [];
 
-    // ১. প্রমো কোডটিকে মনোস্পেসড কোড ব্লকে রূপান্তর করা (এতে ইউজার ট্যাপ করলেই কোডটি সহজে কপি করতে পারবে)
+    // ১. প্রমো কোড থেকে সব ধরনের আগের লিংক রিমোভ করে সেটিকে কপি-বান্ধব কোড ব্লকে রূপান্তর করা
     text = text.replace(/(PROMO CODE\s*(?:➔|->|➡️)?\s*)(`?)([a-zA-Z0-9._-]+)(`?)/gi, (match, p1, q1, code, q2) => {
         return `${p1}\`${code}\``;
     });
 
-    // ২. নিচের হ্যাশট্যাগগুলোকে টেলিগ্রামের স্পয়লার ফরম্যাটে (||#hashtag||) ঢেকে দেওয়া যাতে ওগুলো কালো হয়ে ঢাকা থাকে
-    text = text.replace(/(#\w+)/g, '||$1||');
+    // ২. হ্যাশট্যাগগুলোকে সঠিকভাবে স্পয়লার ট্যাগের ভেতর ঢুকিয়ে দেওয়া যাতে টেক্সটে কোনো ব্র্যাকেট বা অতিরিক্ত চিহ্ন না দেখিয়ে একদম কালো হয়ে ঢাকা থাকে
+    const hashtagRegex = /#\w+/g;
+    let match;
+    let tagsToHide = [];
+    while ((match = hashtagRegex.exec(text)) !== null) {
+        if (!tagsToHide.includes(match[0])) {
+            tagsToHide.push(match[0]);
+        }
+    }
+    
+    tagsToHide.forEach(tag => {
+        // প্রতিটি হ্যাশট্যাগকে টেলিগ্রামের স্পয়লার ফরম্যাটে রূপান্তর করা
+        let escapedTag = tag.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+        let regex = new RegExp(escapedTag, 'g');
+        text = text.replace(regex, `||${tag}||`);
+    });
 
-    // ৩. ডাউনলোড লিংকগুলো সচল রাখা
+    // ৩. শুধুমাত্র ডাউনলোড লিংক বা অন্যান্য দরকারি লিংকগুলো সচল রাখা (প্রমো কোডের লিংক বাদে)
     if (entities.length > 0) {
         let offsetCorrection = 0;
         entities.forEach(entity => {
@@ -67,10 +81,13 @@ function cleanAndFormatText(msg) {
                 let start = entity.offset + offsetCorrection;
                 let end = start + entity.length;
                 let linkText = text.substring(start, end);
-                let markdownLink = `[${linkText}](${entity.url})`;
                 
-                if (text.includes(linkText)) {
-                    text = text.replace(linkText, markdownLink);
+                // প্রমো কোডের অংশে যেন কোনো লিংক না বসে তা নিশ্চিত করা
+                if (!linkText.toLowerCase().includes('promo') && !text.includes(`\`${linkText}\``)) {
+                    let markdownLink = `[${linkText}](${entity.url})`;
+                    if (text.includes(linkText)) {
+                        text = text.replace(linkText, markdownLink);
+                    }
                 }
             }
         });
@@ -128,7 +145,7 @@ bot.on('channel_post', (msg) => {
 
 function restorePostsToChannel(chatId) {
     if (postDatabase['all_posts'] && postDatabase['all_posts'].length > 0) {
-        bot.sendMessage(chatId, `Starting to restore ${postDatabase['all_posts'].length} posts with normal promo codes & hidden hashtags...`);
+        bot.sendMessage(chatId, `Starting to restore ${postDatabase['all_posts'].length} posts with clean copyable codes & hidden hashtags...`);
         
         postDatabase['all_posts'].forEach((post, index) => {
             setTimeout(() => {
@@ -190,7 +207,7 @@ bot.on('message', (msg) => {
                 }
             }
 
-            if (foundPosts.length > 0) {
+            if (foundPosts.length > 0)  {
                 foundPosts.forEach(post => {
                     sendPostToUser(chatId, post);
                 });
@@ -203,7 +220,7 @@ bot.on('message', (msg) => {
 
 function sendPostToUser(userId, post) {
     const options = { parse_mode: "Markdown" };
-    if (post.replyMarkup) {
+    if, (post.replyMarkup) {
         options.reply_markup = post.replyMarkup;
     }
 
@@ -218,4 +235,4 @@ function sendPostToUser(userId, post) {
     }
 }
 
-console.log("Bot with clickable promo codes & hidden hashtags is running successfully...");
+console.log("Bot with final optimized formatting is running successfully...");
