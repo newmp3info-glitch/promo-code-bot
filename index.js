@@ -67,7 +67,6 @@ function cleanAndFormatText(msg) {
     }
     
     tagsToHide.forEach(tag => {
-        // প্রতিটি হ্যাশট্যাগকে টেলিগ্রামের স্পয়লার ফরম্যাটে রূপান্তর করা
         let escapedTag = tag.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
         let regex = new RegExp(escapedTag, 'g');
         text = text.replace(regex, `||${tag}||`);
@@ -82,7 +81,6 @@ function cleanAndFormatText(msg) {
                 let end = start + entity.length;
                 let linkText = text.substring(start, end);
                 
-                // প্রমো কোডের অংশে যেন কোনো লিংক না বসে তা নিশ্চিত করা
                 if (!linkText.toLowerCase().includes('promo') && !text.includes(`\`${linkText}\``)) {
                     let markdownLink = `[${linkText}](${entity.url})`;
                     if (text.includes(linkText)) {
@@ -207,7 +205,7 @@ bot.on('message', (msg) => {
                 }
             }
 
-            if (foundPosts.length > 0)  {
+            if (foundPosts.length > 0) {
                 foundPosts.forEach(post => {
                     sendPostToUser(chatId, post);
                 });
@@ -220,7 +218,7 @@ bot.on('message', (msg) => {
 
 function sendPostToUser(userId, post) {
     const options = { parse_mode: "Markdown" };
-    if, (post.replyMarkup) {
+    if (post.replyMarkup) {
         options.reply_markup = post.replyMarkup;
     }
 
