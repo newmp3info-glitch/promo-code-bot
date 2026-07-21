@@ -2,7 +2,7 @@ const TelegramBot = require('node-telegram-bot-api');
 const http = require('http');
 const fs = require('fs');
 
-// Read the bot token safely from Render Environment Variables (No hardcoded token)
+// Read the bot token safely from Render Environment Variables
 const token = process.env.BOT_TOKEN;
 const bot = new TelegramBot(token, { polling: true });
 
@@ -49,7 +49,7 @@ server.listen(PORT, () => {
     console.log(`Server is listening on port ${PORT}`);
 });
 
-// Automatically catch new posts from channel and broadcast directly to all users
+// Automatically catch new posts from channel and save/broadcast
 bot.on('channel_post', (msg) => {
     const chatUsername = msg.chat.username ? `@${msg.chat.username}` : '';
     
@@ -82,12 +82,12 @@ bot.on('channel_post', (msg) => {
                 }
             });
 
-            // Broadcast directly to all users instantly
+            // Broadcast directly to all existing users instantly
             botUsers.forEach(userId => {
                 sendPostToUser(userId, postContent);
             });
 
-            console.log("New channel post broadcasted directly to all users!");
+            console.log("New channel post saved and broadcasted!");
         }
     }
 });
@@ -109,7 +109,7 @@ function sendPostToUser(userId, post) {
     }
 }
 
-// Handle user interactions, detailed /start message, and search
+// Handle user interactions, English /start message, and instant search
 bot.on('message', (msg) => {
     const chatId = msg.chat.id;
     const text = msg.text;
@@ -123,9 +123,10 @@ bot.on('message', (msg) => {
         if (text.startsWith('/start')) {
             const welcomeText = "Welcome to the Official Promo Code Bot!\n\n" +
                                 "⚠️ **Notice:** Here you will get **Only Yono Promo Code**. No other games or unrelated content will be provided here.\n\n" +
-                                "📢 **How to use:**\n" +
-                                "• You will receive all the posts broadcasted here automatically, and you can easily collect your promo codes directly from them.\n" +
-                                "• If there are too many posts and you can't find your desired one, simply **type and search the game name** you need. The bot will instantly send you the required code!";
+                                "🚀 **All updates and promo codes for any new Yono games will be available here first!**\n\n" +
+                                "📢 **How to get codes instantly:**\n" +
+                                "• Whenever you join, you will automatically receive new posts.\n" +
+                                "• **Need codes right now?** Just type and **search the game name** in the chat. The bot will instantly send you the available promo codes right away!";
             
             bot.sendMessage(chatId, welcomeText, { parse_mode: "Markdown" });
         } else {
@@ -136,10 +137,10 @@ bot.on('message', (msg) => {
                     sendPostToUser(chatId, post);
                 });
             } else {
-                bot.sendMessage(chatId, `No promo post found for "${text}". Please type the correct game name.`);
+                bot.sendMessage(chatId, `No promo code found for "${text}". Please type the correct game name to get available codes instantly.`);
             }
         }
     }
 });
 
-console.log("Secure Bot is running successfully...");
+console.log("English Bot is running successfully...");
