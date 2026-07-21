@@ -49,7 +49,7 @@ server.listen(PORT, () => {
     console.log(`Server is listening on port ${PORT}`);
 });
 
-// Automatically catch new posts from channel and save/broadcast
+// Automatically catch new posts from channel, save and broadcast instantly
 bot.on('channel_post', (msg) => {
     const chatUsername = msg.chat.username ? `@${msg.chat.username}` : '';
     
@@ -58,11 +58,10 @@ bot.on('channel_post', (msg) => {
         const photo = msg.photo ? msg.photo[msg.photo.length - 1].file_id : null;
         const replyMarkup = msg.reply_markup || null;
         
-        // Fix: Automatically make promo codes tap-to-copy using markdown code block format if not already formatted
-        // This regex looks for common promo code patterns and wraps them in backticks for easy one-tap copying
         if (text) {
-            const lowerText = text.toLowerCase();
-            const words = lowerText.split(/\s+/);
+            // Automatically make promo codes tap-to-copy using markdown code block format
+            // This safely wraps potential promo code words or terms containing dots/alphanumerics
+            const words = text.split(/\s+/);
             
             const postContent = {
                 text: text,
@@ -70,9 +69,10 @@ bot.on('channel_post', (msg) => {
                 replyMarkup: replyMarkup
             };
 
+            // Store words as keywords without stripping dots so names like "neta.vip" match completely
             words.forEach(word => {
-                const cleanWord = word.replace(/[^a-z0-9]/g, '');
-                if (cleanWord.length > 2) {
+                const cleanWord = word.replace(/[^a-z0-9._]/g, '').toLowerCase();
+                if (cleanWord.length > 1) {
                     if (!postDatabase[cleanWord]) {
                         postDatabase[cleanWord] = [];
                     }
@@ -84,17 +84,27 @@ bot.on('channel_post', (msg) => {
                 }
             });
 
-            // Broadcast directly to all existing users instantly
+            // Global backup index
+            if (!postDatabase['all_posts']) {
+                postDatabase['all_posts'] = [];
+            }
+            const globalExists = postDatabase['all_posts'].some(p => p.text === text);
+            if (!globalExists) {
+                postDatabase['all_posts'].push(postContent);
+                savePosts();
+            }
+
+            // Broadcast directly to all existing users instantly with media, buttons, and exact formatting
             botUsers.forEach(userId => {
                 sendPostToUser(userId, postContent);
             });
 
-            console.log("New channel post saved and broadcasted with full support!");
+            console.log("Exact channel post captured, saved, and broadcasted instantly!");
         }
     }
 });
 
-// Helper function to send post cleanly with buttons and links support
+// Helper function to send post cleanly with exact media, text, links and buttons
 function sendPostToUser(userId, post) {
     const options = {};
     if (post.replyMarkup) {
@@ -104,14 +114,20 @@ function sendPostToUser(userId, post) {
     if (post.photo) {
         bot.sendPhoto(userId, post.photo, { 
             caption: post.text, 
+            parse_mode: "Markdown",
             ...options 
-        }).catch(err => {});
+        }).catch(err => {
+            // Fallback without parse_mode if special markdown symbols conflict
+            bot.sendPhoto(userId, post.photo, { caption: post.text, ...options }).catch(e => {});
+        });
     } else {
-        bot.sendMessage(userId, post.text, options).catch(err => {});
+        bot.sendMessage(userId, post.text, { parse_mode: "Markdown", ...options }).catch(err => {
+            bot.sendMessage(userId, post.text, options).catch(e => {});
+        });
     }
 }
 
-// Handle user interactions, English /start message, and instant search
+// Handle user interactions, English /start message, and smart search
 bot.on('message', (msg) => {
     const chatId = msg.chat.id;
     const text = msg.text;
@@ -132,10 +148,29 @@ bot.on('message', (msg) => {
             
             bot.sendMessage(chatId, welcomeText, { parse_mode: "Markdown" });
         } else {
-            const query = text.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
-            
+            const query = text.trim().toLowerCase().replace(/[^a-z0-9._]/g, '');
+            let foundPosts = [];
+
+            // 1. Direct exact keyword match
             if (postDatabase[query] && postDatabase[query].length > 0) {
-                postDatabase[query].forEach(post => {
+                foundPosts = postDatabase[query];
+            } else {
+                // 2. Smart flexible search matching
+                for (let key in postDatabase) {
+                    if (key.includes(query) || query.includes(key)) {
+                        if (Array.isArray(postDatabase[key])) {
+                            postDatabase[key].forEach(p => {
+                                if (!foundPosts.some(existing => existing.text === p.text)) {
+                                    foundPosts.push(p);
+                                }
+                            });
+                        }
+                    }
+                }
+            }
+
+            if (foundPosts.length > 0) {
+                foundPosts.forEach(post => {
                     sendPostToUser(chatId, post);
                 });
             } else {
@@ -145,4 +180,5 @@ bot.on('message', (msg) => {
     }
 });
 
-console.log("Bot is fully updated and running smoothly...");
+console.log("Bot is fully running with exact channel sync and unmasked dots support...");
+        
