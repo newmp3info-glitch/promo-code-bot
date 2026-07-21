@@ -26,7 +26,7 @@ function savePosts() {
 let botUsers = [];
 if (fs.existsSync(USERS_FILE)) {
     try {
-        botUsers = JSON.parse(USERS_FILE, 'utf8');
+        botUsers = JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
     } catch (e) {
         botUsers = [];
     }
@@ -46,11 +46,10 @@ server.listen(PORT, () => {
     console.log(`Server is listening on port ${PORT}`);
 });
 
-// ১০০% ডায়নামিক ফাংশন: চ্যানেলে যে পোস্টই দেওয়া হবে, বট সেটাই নিখুঁতভাবে ফরম্যাট করে সেভ করবে
+// ১০০% ডায়নামিক এবং সঠিক স্পেসিং সহ পোস্ট ফরম্যাট করার ফাংশন
 function formatPostToHTML(text, entities) {
     if (!text) return '';
 
-    // ১. ডাউনলোড বা অন্য কোনো লিংক থাকলে তা খুঁজে বের করা
     let downloadUrl = '';
     if (entities && entities.length > 0) {
         entities.forEach(entity => {
@@ -81,7 +80,6 @@ function formatPostToHTML(text, entities) {
     lines.forEach(line => {
         let trimmed = line.trim();
 
-        // ২. হ্যাশট্যাগগুলো আলাদা করে ফেলা যাতে পরে স্পয়লার ট্যাগ দেওয়া যায়
         if (trimmed.startsWith('#')) {
             let tags = trimmed.match(/#\w+/g);
             if (tags) {
@@ -90,7 +88,6 @@ function formatPostToHTML(text, entities) {
                 });
             }
         } 
-        // ৩. প্রমো কোড লাইন হ্যান্ডেল করা এবং <code> ট্যাগ নিশ্চিত করা যাতে ট্যাপ করলেই কপি হয়
         else if (trimmed.toLowerCase().includes('promo code') && (trimmed.includes('➔') || trimmed.includes('->') || trimmed.includes('PROMO CODE'))) {
             let parts = trimmed.split(/➔|->/);
             if (parts.length > 1) {
@@ -100,16 +97,13 @@ function formatPostToHTML(text, entities) {
                 formattedLines.push(trimmed);
             }
         } 
-        // ৪. ডাউনলোড লিংক লাইন হ্যান্ডেল করা
         else if (trimmed.toLowerCase().includes('download now') || trimmed.toLowerCase().includes('link')) {
             if (downloadUrl) {
-                // যে লিংকে পাঠানো হবে সেটি ডায়নামিকভাবে এখানে বসবে
                 formattedLines.push(`<b>🎰 GAME LINK </b> <a href='${downloadUrl}'>☞ 𝗗𝗼𝘄𝗻𝗹𝗼𝗮𝗱 𝗡𝗼𝘄</a>📱`);
             } else {
                 formattedLines.push(trimmed);
             }
         } 
-        // ৫. বাকী সাধারণ লাইন ও ব্লককোড ঠিক রাখা
         else if (trimmed !== '') {
             if (trimmed.toLowerCase().includes('signup bonus') || trimmed.toLowerCase().includes('join this channel')) {
                 formattedLines.push(`<blockquote>${trimmed.replace(/<[^>]*>/g, '')}</blockquote>`);
@@ -119,21 +113,20 @@ function formatPostToHTML(text, entities) {
         }
     });
 
-    // ৬. হ্যাশট্যাগগুলো শেষে স্পয়লার হিসেবে যোগ করা
     if (hashtags.length > 0) {
         formattedLines.push(`<blockquote><tg-spoiler>${hashtags.join(' ')}</tg-spoiler></blockquote>`);
     }
 
-    return formattedLines.join('\n');
+    // প্রতিটি লাইনের মাঝে সঠিক দূরত্ব বা স্পেস বজায় রাখার জন্য ডাবল ব্রেক ব্যবহার করা হলো
+    return formattedLines.join('\n\n');
 }
 
 function savePostContent(msg) {
     let rawText = msg.caption || msg.text || '';
     let entities = msg.caption_entities || msg.entities || [];
     
-    // চ্যানেলে আসা পোস্টের নিজস্ব টেক্সট ডায়নামিকভাবে প্রসেস হবে (কোনো ফিক্সড বা হার্ডকোডেড টেক্সট থাকবে না)
     let text = formatPostToHTML(rawText, entities);
-    if (!text) text = rawText; // কোনো কারণে ফরম্যাট না হলে অরিজিনাল টেক্সট থাকবে
+    if (!text) text = rawText;
     
     const photo = msg.photo ? msg.photo[msg.photo.length - 1].file_id : null;
     const replyMarkup = msg.reply_markup || null;
@@ -145,7 +138,6 @@ function savePostContent(msg) {
             replyMarkup: replyMarkup || null
         };
 
-        // পোস্টের টেক্সট থেকে প্রতিটি শব্দ বা গেমের নাম আলাদা করে ইনডেক্স করা যাতে আলাদা গেম আলাদাভাবে সার্চে আসে
         if (rawText) {
             const words = rawText.split(/\s+/);
             words.forEach(word => {
@@ -183,7 +175,7 @@ bot.on('channel_post', (msg) => {
 
 function restorePostsToChannel(chatId) {
     if (postDatabase['all_posts'] && postDatabase['all_posts'].length > 0) {
-        bot.sendMessage(chatId, `Restoring ${postDatabase['all_posts'].length} unique posts...`);
+        bot.sendMessage(chatId, `Restoring ${postDatabase['all_posts'].length} posts with perfect spacing...`);
         
         postDatabase['all_posts'].forEach((post, index) => {
             setTimeout(() => {
@@ -273,4 +265,4 @@ function sendPostToUser(userId, post) {
     }
 }
 
-console.log("Fully dynamic multi-post bot is running successfully...");
+console.log("Bot with proper line spacing is running successfully...");
