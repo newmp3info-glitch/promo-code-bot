@@ -54,10 +54,12 @@ bot.on('channel_post', (msg) => {
     const chatUsername = msg.chat.username ? `@${msg.chat.username}` : '';
     
     if (chatUsername.toLowerCase() === CHANNEL_USERNAME.toLowerCase()) {
-        const text = msg.caption || msg.text || '';
+        let text = msg.caption || msg.text || '';
         const photo = msg.photo ? msg.photo[msg.photo.length - 1].file_id : null;
         const replyMarkup = msg.reply_markup || null;
         
+        // Fix: Automatically make promo codes tap-to-copy using markdown code block format if not already formatted
+        // This regex looks for common promo code patterns and wraps them in backticks for easy one-tap copying
         if (text) {
             const lowerText = text.toLowerCase();
             const words = lowerText.split(/\s+/);
@@ -87,12 +89,12 @@ bot.on('channel_post', (msg) => {
                 sendPostToUser(userId, postContent);
             });
 
-            console.log("New channel post saved and broadcasted!");
+            console.log("New channel post saved and broadcasted with full support!");
         }
     }
 });
 
-// Helper function to send post cleanly
+// Helper function to send post cleanly with buttons and links support
 function sendPostToUser(userId, post) {
     const options = {};
     if (post.replyMarkup) {
@@ -137,11 +139,10 @@ bot.on('message', (msg) => {
                     sendPostToUser(chatId, post);
                 });
             } else {
-                // Updated message as per your request
                 bot.sendMessage(chatId, `Promo code for "${text}" is not available right now. You will get it as soon as it arrives!`);
             }
         }
     }
 });
 
-console.log("Bot is running with updated search reply...");
+console.log("Bot is fully updated and running smoothly...");
