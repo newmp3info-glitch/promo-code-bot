@@ -5,7 +5,8 @@ const fs = require('fs');
 const token = process.env.BOT_TOKEN;
 const bot = new TelegramBot(token, { polling: true });
 
-const TARGET_CHANNEL_USERNAME = '@VipYonoFreeCode';
+const SOURCE_CHANNEL = '@AllYonoRummyCode';
+const TARGET_CHANNEL = '@VipYonoFreeCode';
 
 const POSTS_FILE = 'posts.json';
 const USERS_FILE = 'users.json';
@@ -48,9 +49,8 @@ server.listen(PORT, () => {
 
 bot.on('channel_post', (msg) => {
     const chatUsername = msg.chat.username ? `@${msg.chat.username.toLowerCase()}` : '';
-    const chatTitle = msg.chat.title ? msg.chat.title.toLowerCase() : '';
-
-    if (chatUsername === TARGET_CHANNEL_USERNAME.toLowerCase() || chatTitle.includes('vip yono')) {
+    
+    if (chatUsername === SOURCE_CHANNEL.toLowerCase()) {
         let text = msg.caption || msg.text || '';
         const photo = msg.photo ? msg.photo[msg.photo.length - 1].file_id : null;
         const replyMarkup = msg.reply_markup || null;
@@ -88,6 +88,15 @@ bot.on('channel_post', (msg) => {
                 savePosts();
             }
 
+            const options = {};
+            if (replyMarkup) options.reply_markup = replyMarkup;
+
+            if (photo) {
+                bot.sendPhoto(TARGET_CHANNEL, photo, { caption: text, parse_mode: "Markdown", ...options }).catch(e => {});
+            } else if (text) {
+                bot.sendMessage(TARGET_CHANNEL, text, { parse_mode: "Markdown", ...options }).catch(e => {});
+            }
+
             botUsers.forEach(userId => {
                 sendPostToUser(userId, postContent);
             });
@@ -116,34 +125,6 @@ function sendPostToUser(userId, post) {
     }
 }
 
-// Function to restore posts back to channel
-function restorePostsToChannel(chatId) {
-    if (postDatabase['all_posts'] && postDatabase['all_posts'].length > 0) {
-        bot.sendMessage(chatId, `Starting to restore ${postDatabase['all_posts'].length} posts to the channel...`);
-        
-        postDatabase['all_posts'].forEach((post, index) => {
-            setTimeout(() => {
-                const options = {};
-                if (post.replyMarkup) {
-                    options.reply_markup = post.replyMarkup;
-                }
-
-                if (post.photo) {
-                    bot.sendPhoto(TARGET_CHANNEL_USERNAME, post.photo, { 
-                        caption: post.text, 
-                        parse_mode: "Markdown",
-                        ...options 
-                    }).catch(err => {});
-                } else if (post.text) {
-                    bot.sendMessage(TARGET_CHANNEL_USERNAME, post.text, { parse_mode: "Markdown", ...options }).catch(err => {});
-                }
-            }, index * 1000); // 1 second delay between each post to avoid Telegram flood limits
-        });
-    } else {
-        bot.sendMessage(chatId, "No saved posts found in database to restore!");
-    }
-}
-
 bot.on('message', (msg) => {
     const chatId = msg.chat.id;
     const text = msg.text;
@@ -163,9 +144,6 @@ bot.on('message', (msg) => {
                                 "• **Need codes right now?** Just type and **search the game name** in the chat. The bot will instantly send you the available promo codes right away!";
             
             bot.sendMessage(chatId, welcomeText, { parse_mode: "Markdown" });
-        } else if (text.startsWith('/restore')) {
-            // Only you (admin/owner chatting with bot) can trigger this
-            restorePostsToChannel(chatId);
         } else {
             const query = text.trim().toLowerCase().replace(/[^a-z0-9._]/g, '');
             let foundPosts = [];
@@ -197,4 +175,4 @@ bot.on('message', (msg) => {
     }
 });
 
-console.log("Bot with restore backup feature is running successfully...");
+console.log("Bot is running successfully...");
