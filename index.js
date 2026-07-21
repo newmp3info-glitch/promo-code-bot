@@ -1,5 +1,7 @@
 
-const TelegramBot = require('node-telegram-bot-api');
+
+
+            const TelegramBot = require('node-telegram-bot-api');
 const http = require('http');
 const fs = require('fs');
 
@@ -7,23 +9,36 @@ const fs = require('fs');
 const token = '7734842773:AAE9wldHvcrCd9IbBWROj1SoYw4twDfw1zU';
 const bot = new TelegramBot(token, { polling: true });
 
-// Enter your exact channel username here (e.g., @VipYonoFreeCode)
+// Enter your exact channel username here
 const CHANNEL_USERNAME = '@VipYonoFreeCode';
 
-// File to store channel posts permanently
-const DATA_FILE = 'posts.json';
+const POSTS_FILE = 'posts.json';
+const USERS_FILE = 'users.json';
 
 let postDatabase = {};
-if (fs.existsSync(DATA_FILE)) {
+if (fs.existsSync(POSTS_FILE)) {
     try {
-        postDatabase = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+        postDatabase = JSON.parse(fs.readFileSync(POSTS_FILE, 'utf8'));
     } catch (e) {
         postDatabase = {};
     }
 }
 
-function saveDatabase() {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(postDatabase, null, 2));
+function savePosts() {
+    fs.writeFileSync(POSTS_FILE, JSON.stringify(postDatabase, null, 2));
+}
+
+let botUsers = [];
+if (fs.existsSync(USERS_FILE)) {
+    try {
+        botUsers = JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
+    } catch (e) {
+        botUsers = [];
+    }
+}
+
+function saveUsers() {
+    fs.writeFileSync(USERS_FILE, JSON.stringify(botUsers, null, 2));
 }
 
 // Dummy server to keep the bot alive on Render
@@ -37,7 +52,7 @@ server.listen(PORT, () => {
     console.log(`Server is listening on port ${PORT}`);
 });
 
-// Catch channel posts and store their message IDs and keywords
+// Automatically catch new posts from channel and broadcast permanently to all users
 bot.on('channel_post', (msg) => {
     const chatUsername = msg.chat.username ? `@${msg.chat.username}` : '';
     
@@ -56,49 +71,57 @@ bot.on('channel_post', (msg) => {
                     if (!postDatabase[cleanWord]) {
                         postDatabase[cleanWord] = [];
                     }
-                    // Save both messageId and chatId so we can forward the exact post
                     const postData = { chatId: chatId, messageId: messageId };
-                    
-                    // Avoid duplicate entries
                     const exists = postDatabase[cleanWord].some(p => p.messageId === messageId);
                     if (!exists) {
                         postDatabase[cleanWord].push(postData);
-                        saveDatabase();
+                        savePosts();
                     }
                 }
             });
-            console.log("Channel post cached with Media & Buttons support!");
+
+            // Broadcast permanently to all active bot users without deletion
+            botUsers.forEach(userId => {
+                bot.forwardMessage(userId, chatId, messageId)
+                   .catch(err => {
+                       // Ignore blocked users
+                   });
+            });
+
+            console.log("New post permanently broadcasted to all users!");
         }
     }
 });
 
-// Start command
-bot.onText(/\/start/, (msg) => {
-    const chatId = msg.chat.id;
-    bot.sendMessage(chatId, "Welcome! Type any game name to get the latest promo code from the channel.");
-});
-
-// Search handler - Forwards the exact original post with photo, links, and buttons
+// Handle user interactions, start command, and permanent search
 bot.on('message', (msg) => {
     const chatId = msg.chat.id;
     const text = msg.text;
 
-    if (text && !text.startsWith('/')) {
-        const query = text.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
-        
-        if (postDatabase[query] && postDatabase[query].length > 0) {
-            const latestPost = postDatabase[query][postDatabase[query].length - 1];
-            
-            // Forward the exact original message from the channel (includes photo, caption, links, and buttons)
-            bot.forwardMessage(chatId, latestPost.chatId, latestPost.messageId)
-               .catch(err => {
-                   bot.sendMessage(chatId, "Error loading the post. Please make sure the bot has admin rights.");
-               });
+    if (!botUsers.includes(chatId)) {
+        botUsers.push(chatId);
+        saveUsers();
+    }
+
+    if (text) {
+        if (text.startsWith('/start')) {
+            bot.sendMessage(chatId, "Welcome! You will receive all channel updates here automatically. You can also search for any game name anytime.");
         } else {
-            bot.sendMessage(chatId, `No promo post found for "${text}". Make sure to post it in the channel first.`);
+            const query = text.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+            
+            if (postDatabase[query] && postDatabase[query].length > 0) {
+                // Show all matched posts permanently
+                postDatabase[query].forEach(latestPost => {
+                    bot.forwardMessage(chatId, latestPost.chatId, latestPost.messageId)
+                       .catch(err => {
+                           bot.sendMessage(chatId, "Error loading the post.");
+                       });
+                });
+            } else {
+                bot.sendMessage(chatId, `No promo post found for "${text}".`);
+            }
         }
     }
 });
 
-console.log("Media & Button Forwarder Bot is running smoothly...");
-
+console.log("Permanent Channel Feed Bot is running smoothly...");
