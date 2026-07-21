@@ -1,13 +1,13 @@
-
 const TelegramBot = require('node-telegram-bot-api');
 const http = require('http');
 
 // Replace with your bot token
-const token = '7734842773:AAE9wldHvcrCd9IbBWROj1SoYw4twDfw1zU';
+const token = '7734842773:AAE9wldHvcrCd9IbBWROj1SoYw4twDfw1zU
+';
 const bot = new TelegramBot(token, { polling: true });
 
-// Your channel username
-const CHANNEL_USERNAME = '@VipYonoFreeCode';
+// Temporary memory to store channel posts automatically
+const postDatabase = {};
 
 // Dummy server to prevent Render free tier port binding errors
 const server = http.createServer((req, res) => {
@@ -20,28 +20,53 @@ server.listen(PORT, () => {
     console.log(`Server is listening on port ${PORT}`);
 });
 
-// Start command in English
-bot.onText(/\/start/, (msg) => {
-    const chatId = msg.chat.id;
-    bot.sendMessage(chatId, "Welcome! Please type the name of the game to get your promo code.");
+// Automatically catch new posts from your channel
+bot.on('channel_post', (msg) => {
+    const text = msg.text || msg.caption;
+    if (text) {
+        // Lowercase text to make searching easy
+        const lowerText = text.toLowerCase();
+        
+        // Save the post text into memory based on keywords/game names found in the post
+        // (You can write any game name inside your channel post, the bot will catch it)
+        const words = lowerText.split(' ');
+        words.forEach(word => {
+            if (word.length > 2) { // store words longer than 2 characters as keywords
+                if (!postDatabase[word]) {
+                    postDatabase[word] = [];
+                }
+                // Avoid duplicate posts
+                if (!postDatabase[word].includes(text)) {
+                    postDatabase[word].push(text);
+                }
+            }
+        });
+        console.log("New channel post cached successfully!");
+    }
 });
 
-// Message handler for game search
+// Start command
+bot.onText(/\/start/, (msg) => {
+    const chatId = msg.chat.id;
+    bot.sendMessage(chatId, "Welcome! Type any game name or keyword to get the latest promo code from the channel.");
+});
+
+// When user searches for a game/code
 bot.on('message', (msg) => {
     const chatId = msg.chat.id;
     const text = msg.text;
 
     if (text && !text.startsWith('/')) {
-        const gameName = text.trim();
+        const query = text.trim().toLowerCase();
         
-        // Response to user
-        bot.sendMessage(chatId, `Searching promo code for "${gameName}" from channel ${CHANNEL_USERNAME}...`);
-        
-        // Note: To fetch real posts from a public channel via standard Bot API, 
-        // the bot must be added as an Administrator to that channel, 
-        // or you need to maintain a database/JSON file of your promo codes here.
+        if (postDatabase[query] && postDatabase[query].length > 0) {
+            // Send the latest matched post from the channel
+            const latestPost = postDatabase[query][postDatabase[query].length - 1];
+            bot.sendMessage(chatId, `Latest Promo Post Found:\n\n${latestPost}`);
+        } else {
+            bot.sendMessage(chatId, `No recent promo post found for "${text}". Make sure the bot is an admin in your channel and the keyword matches your channel post.`);
+        }
     }
 });
 
-console.log("Promo Code Bot is running smoothly...");
-
+console.log("Advanced Channel Post Bot is running...");
