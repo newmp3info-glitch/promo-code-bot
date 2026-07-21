@@ -6,7 +6,7 @@ const fs = require('fs');
 const token = process.env.BOT_TOKEN;
 const bot = new TelegramBot(token, { polling: true });
 
-// Enter your exact channel username here
+// Your single main source channel username
 const CHANNEL_USERNAME = '@VipYonoFreeCode';
 
 const POSTS_FILE = 'posts.json';
@@ -49,27 +49,23 @@ server.listen(PORT, () => {
     console.log(`Server is listening on port ${PORT}`);
 });
 
-// Automatically catch new posts from channel, save and broadcast instantly
+// Automatically catch new posts from your single main channel and broadcast instantly
 bot.on('channel_post', (msg) => {
-    const chatUsername = msg.chat.username ? `@${msg.chat.username}` : '';
+    const chatUsername = msg.chat.username ? `@${msg.chat.username.toLowerCase()}` : '';
     
-    if (chatUsername.toLowerCase() === CHANNEL_USERNAME.toLowerCase()) {
+    if (chatUsername === CHANNEL_USERNAME.toLowerCase()) {
         let text = msg.caption || msg.text || '';
         const photo = msg.photo ? msg.photo[msg.photo.length - 1].file_id : null;
         const replyMarkup = msg.reply_markup || null;
         
         if (text) {
-            // Automatically make promo codes tap-to-copy using markdown code block format
-            // This safely wraps potential promo code words or terms containing dots/alphanumerics
             const words = text.split(/\s+/);
-            
             const postContent = {
                 text: text,
                 photo: photo,
                 replyMarkup: replyMarkup
             };
 
-            // Store words as keywords without stripping dots so names like "neta.vip" match completely
             words.forEach(word => {
                 const cleanWord = word.replace(/[^a-z0-9._]/g, '').toLowerCase();
                 if (cleanWord.length > 1) {
@@ -84,7 +80,6 @@ bot.on('channel_post', (msg) => {
                 }
             });
 
-            // Global backup index
             if (!postDatabase['all_posts']) {
                 postDatabase['all_posts'] = [];
             }
@@ -94,17 +89,17 @@ bot.on('channel_post', (msg) => {
                 savePosts();
             }
 
-            // Broadcast directly to all existing users instantly with media, buttons, and exact formatting
+            // Broadcast directly to all bot users instantly
             botUsers.forEach(userId => {
                 sendPostToUser(userId, postContent);
             });
 
-            console.log("Exact channel post captured, saved, and broadcasted instantly!");
+            console.log("Post captured from main channel and broadcasted successfully!");
         }
     }
 });
 
-// Helper function to send post cleanly with exact media, text, links and buttons
+// Helper function to send post cleanly
 function sendPostToUser(userId, post) {
     const options = {};
     if (post.replyMarkup) {
@@ -117,7 +112,6 @@ function sendPostToUser(userId, post) {
             parse_mode: "Markdown",
             ...options 
         }).catch(err => {
-            // Fallback without parse_mode if special markdown symbols conflict
             bot.sendPhoto(userId, post.photo, { caption: post.text, ...options }).catch(e => {});
         });
     } else {
@@ -127,7 +121,7 @@ function sendPostToUser(userId, post) {
     }
 }
 
-// Handle user interactions, English /start message, and smart search
+// Handle user interactions and search
 bot.on('message', (msg) => {
     const chatId = msg.chat.id;
     const text = msg.text;
@@ -151,11 +145,9 @@ bot.on('message', (msg) => {
             const query = text.trim().toLowerCase().replace(/[^a-z0-9._]/g, '');
             let foundPosts = [];
 
-            // 1. Direct exact keyword match
             if (postDatabase[query] && postDatabase[query].length > 0) {
                 foundPosts = postDatabase[query];
             } else {
-                // 2. Smart flexible search matching
                 for (let key in postDatabase) {
                     if (key.includes(query) || query.includes(key)) {
                         if (Array.isArray(postDatabase[key])) {
@@ -180,5 +172,4 @@ bot.on('message', (msg) => {
     }
 });
 
-console.log("Bot is fully running with exact channel sync and unmasked dots support...");
-        
+console.log("Single channel sync bot is running successfully...");
