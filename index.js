@@ -137,10 +137,11 @@ bot.on('message', (msg) => {
                     sendPostToUser(chatId, post);
                 });
             } else {
-                bot.sendMessage(chatId, `No promo code found for "${text}". Please type the correct game name to get available codes instantly.`);
+                // Updated message as per your request
+                bot.sendMessage(chatId, `Promo code for "${text}" is not available right now. You will get it as soon as it arrives!`);
             }
         }
     }
 });
 
-console.log("English Bot is running successfully...");
+console.log("Bot is running with updated search reply...");
