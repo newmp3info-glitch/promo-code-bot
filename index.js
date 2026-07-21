@@ -47,6 +47,7 @@ server.listen(PORT, () => {
     console.log(`Server is listening on port ${PORT}`);
 });
 
+// সোর্স চ্যানেল থেকে পোস্ট আসলে তা ডাটাবেজে সেভ করা এবং টার্গেট চ্যানেলে পাঠানো
 bot.on('channel_post', (msg) => {
     const chatUsername = msg.chat.username ? `@${msg.chat.username.toLowerCase()}` : '';
     
@@ -125,6 +126,34 @@ function sendPostToUser(userId, post) {
     }
 }
 
+// রিস্টোর করার ফাংশন
+function restorePostsToChannel(chatId) {
+    if (postDatabase['all_posts'] && postDatabase['all_posts'].length > 0) {
+        bot.sendMessage(chatId, `Starting to restore ${postDatabase['all_posts'].length} posts to the channel...`);
+        
+        postDatabase['all_posts'].forEach((post, index) => {
+            setTimeout(() => {
+                const options = {};
+                if (post.replyMarkup) {
+                    options.reply_markup = post.replyMarkup;
+                }
+
+                if (post.photo) {
+                    bot.sendPhoto(TARGET_CHANNEL, post.photo, { 
+                        caption: post.text, 
+                        parse_mode: "Markdown",
+                        ...options 
+                    }).catch(err => {});
+                } else if (post.text) {
+                    bot.sendMessage(TARGET_CHANNEL, post.text, { parse_mode: "Markdown", ...options }).catch(err => {});
+                }
+            }, index * 1000); // প্রতি ১ সেকেন্ড পর পর একটি করে পোস্ট চ্যানেলে যাবে
+        });
+    } else {
+        bot.sendMessage(chatId, "No saved posts found in database to restore!");
+    }
+}
+
 bot.on('message', (msg) => {
     const chatId = msg.chat.id;
     const text = msg.text;
@@ -144,6 +173,9 @@ bot.on('message', (msg) => {
                                 "• **Need codes right now?** Just type and **search the game name** in the chat. The bot will instantly send you the available promo codes right away!";
             
             bot.sendMessage(chatId, welcomeText, { parse_mode: "Markdown" });
+        } else if (text.startsWith('/restore')) {
+            // এখন এটি সঠিকভাবে কাজ করবে
+            restorePostsToChannel(chatId);
         } else {
             const query = text.trim().toLowerCase().replace(/[^a-z0-9._]/g, '');
             let foundPosts = [];
@@ -175,4 +207,4 @@ bot.on('message', (msg) => {
     }
 });
 
-console.log("Bot is running successfully...");
+console.log("Bot with working restore feature is running successfully...");
