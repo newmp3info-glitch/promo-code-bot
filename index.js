@@ -2,12 +2,10 @@ const TelegramBot = require('node-telegram-bot-api');
 const http = require('http');
 const fs = require('fs');
 
-// Read the bot token safely from Render Environment Variables
 const token = process.env.BOT_TOKEN;
 const bot = new TelegramBot(token, { polling: true });
 
-// Enter your exact channel username here
-const CHANNEL_USERNAME = '@VipYonoFreeCode';
+const TARGET_CHANNEL_USERNAME = '@VipYonoFreeCode';
 
 const POSTS_FILE = 'posts.json';
 const USERS_FILE = 'users.json';
@@ -38,7 +36,6 @@ function saveUsers() {
     fs.writeFileSync(USERS_FILE, JSON.stringify(botUsers, null, 2));
 }
 
-// Dummy server to keep the bot alive on Render
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end('Bot is running successfully!\n');
@@ -49,50 +46,55 @@ server.listen(PORT, () => {
     console.log(`Server is listening on port ${PORT}`);
 });
 
-// Automatically catch new posts from channel and save/broadcast
 bot.on('channel_post', (msg) => {
-    const chatUsername = msg.chat.username ? `@${msg.chat.username}` : '';
-    
-    if (chatUsername.toLowerCase() === CHANNEL_USERNAME.toLowerCase()) {
-        const text = msg.caption || msg.text || '';
+    const chatUsername = msg.chat.username ? `@${msg.chat.username.toLowerCase()}` : '';
+    const chatTitle = msg.chat.title ? msg.chat.title.toLowerCase() : '';
+
+    if (chatUsername === TARGET_CHANNEL_USERNAME.toLowerCase() || chatTitle.includes('vip yono')) {
+        let text = msg.caption || msg.text || '';
         const photo = msg.photo ? msg.photo[msg.photo.length - 1].file_id : null;
         const replyMarkup = msg.reply_markup || null;
         
-        if (text) {
-            const lowerText = text.toLowerCase();
-            const words = lowerText.split(/\s+/);
-            
+        if (text || photo) {
             const postContent = {
-                text: text,
+                text: text || '',
                 photo: photo,
                 replyMarkup: replyMarkup
             };
 
-            words.forEach(word => {
-                const cleanWord = word.replace(/[^a-z0-9]/g, '');
-                if (cleanWord.length > 2) {
-                    if (!postDatabase[cleanWord]) {
-                        postDatabase[cleanWord] = [];
+            if (text) {
+                const words = text.split(/\s+/);
+                words.forEach(word => {
+                    const cleanWord = word.replace(/[^a-z0-9._]/g, '').toLowerCase();
+                    if (cleanWord.length >= 1) {
+                        if (!postDatabase[cleanWord]) {
+                            postDatabase[cleanWord] = [];
+                        }
+                        const exists = postDatabase[cleanWord].some(p => p.text === text);
+                        if (!exists) {
+                            postDatabase[cleanWord].push(postContent);
+                            savePosts();
+                        }
                     }
-                    const exists = postDatabase[cleanWord].some(p => p.text === text);
-                    if (!exists) {
-                        postDatabase[cleanWord].push(postContent);
-                        savePosts();
-                    }
-                }
-            });
+                });
+            }
 
-            // Broadcast directly to all existing users instantly
+            if (!postDatabase['all_posts']) {
+                postDatabase['all_posts'] = [];
+            }
+            const globalExists = postDatabase['all_posts'].some(p => p.text === text);
+            if (!globalExists) {
+                postDatabase['all_posts'].push(postContent);
+                savePosts();
+            }
+
             botUsers.forEach(userId => {
                 sendPostToUser(userId, postContent);
             });
-
-            console.log("New channel post saved and broadcasted!");
         }
     }
 });
 
-// Helper function to send post cleanly
 function sendPostToUser(userId, post) {
     const options = {};
     if (post.replyMarkup) {
@@ -102,14 +104,46 @@ function sendPostToUser(userId, post) {
     if (post.photo) {
         bot.sendPhoto(userId, post.photo, { 
             caption: post.text, 
+            parse_mode: "Markdown",
             ...options 
-        }).catch(err => {});
-    } else {
-        bot.sendMessage(userId, post.text, options).catch(err => {});
+        }).catch(err => {
+            bot.sendPhoto(userId, post.photo, { caption: post.text, ...options }).catch(e => {});
+        });
+    } else if (post.text) {
+        bot.sendMessage(userId, post.text, { parse_mode: "Markdown", ...options }).catch(err => {
+            bot.sendMessage(userId, post.text, options).catch(e => {});
+        });
     }
 }
 
-// Handle user interactions, English /start message, and instant search
+// Function to restore posts back to channel
+function restorePostsToChannel(chatId) {
+    if (postDatabase['all_posts'] && postDatabase['all_posts'].length > 0) {
+        bot.sendMessage(chatId, `Starting to restore ${postDatabase['all_posts'].length} posts to the channel...`);
+        
+        postDatabase['all_posts'].forEach((post, index) => {
+            setTimeout(() => {
+                const options = {};
+                if (post.replyMarkup) {
+                    options.reply_markup = post.replyMarkup;
+                }
+
+                if (post.photo) {
+                    bot.sendPhoto(TARGET_CHANNEL_USERNAME, post.photo, { 
+                        caption: post.text, 
+                        parse_mode: "Markdown",
+                        ...options 
+                    }).catch(err => {});
+                } else if (post.text) {
+                    bot.sendMessage(TARGET_CHANNEL_USERNAME, post.text, { parse_mode: "Markdown", ...options }).catch(err => {});
+                }
+            }, index * 1000); // 1 second delay between each post to avoid Telegram flood limits
+        });
+    } else {
+        bot.sendMessage(chatId, "No saved posts found in database to restore!");
+    }
+}
+
 bot.on('message', (msg) => {
     const chatId = msg.chat.id;
     const text = msg.text;
@@ -129,19 +163,38 @@ bot.on('message', (msg) => {
                                 "• **Need codes right now?** Just type and **search the game name** in the chat. The bot will instantly send you the available promo codes right away!";
             
             bot.sendMessage(chatId, welcomeText, { parse_mode: "Markdown" });
+        } else if (text.startsWith('/restore')) {
+            // Only you (admin/owner chatting with bot) can trigger this
+            restorePostsToChannel(chatId);
         } else {
-            const query = text.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
-            
+            const query = text.trim().toLowerCase().replace(/[^a-z0-9._]/g, '');
+            let foundPosts = [];
+
             if (postDatabase[query] && postDatabase[query].length > 0) {
-                postDatabase[query].forEach(post => {
+                foundPosts = postDatabase[query];
+            } else {
+                for (let key in postDatabase) {
+                    if (key.includes(query) || query.includes(key)) {
+                        if (Array.isArray(postDatabase[key])) {
+                            postDatabase[key].forEach(p => {
+                                if (!foundPosts.some(existing => existing.text === p.text)) {
+                                    foundPosts.push(p);
+                                }
+                            });
+                        }
+                    }
+                }
+            }
+
+            if (foundPosts.length > 0) {
+                foundPosts.forEach(post => {
                     sendPostToUser(chatId, post);
                 });
             } else {
-                // Updated message as per your request
                 bot.sendMessage(chatId, `Promo code for "${text}" is not available right now. You will get it as soon as it arrives!`);
             }
         }
     }
 });
 
-console.log("Bot is running with updated search reply...");
+console.log("Bot with restore backup feature is running successfully...");
