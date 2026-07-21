@@ -2,10 +2,12 @@ const TelegramBot = require('node-telegram-bot-api');
 const http = require('http');
 const fs = require('fs');
 
+// Read the bot token safely from Render Environment Variables
 const token = process.env.BOT_TOKEN;
 const bot = new TelegramBot(token, { polling: true });
 
-const TARGET_CHANNEL_ID = process.env.CHANNEL_ID || '@VipYonoFreeCode';
+// Enter your exact channel username here
+const CHANNEL_USERNAME = '@VipYonoFreeCode';
 
 const POSTS_FILE = 'posts.json';
 const USERS_FILE = 'users.json';
@@ -36,6 +38,7 @@ function saveUsers() {
     fs.writeFileSync(USERS_FILE, JSON.stringify(botUsers, null, 2));
 }
 
+// Dummy server to keep the bot alive on Render
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end('Bot is running successfully!\n');
@@ -46,56 +49,50 @@ server.listen(PORT, () => {
     console.log(`Server is listening on port ${PORT}`);
 });
 
+// Automatically catch new posts from channel and save/broadcast
 bot.on('channel_post', (msg) => {
-    const chatId = msg.chat.id.toString();
-    const chatUsername = msg.chat.username ? `@${msg.chat.username.toLowerCase()}` : '';
-    const target = TARGET_CHANNEL_ID.toLowerCase();
-
-    if (chatId === target || chatUsername === target) {
-        let text = msg.caption || msg.text || '';
+    const chatUsername = msg.chat.username ? `@${msg.chat.username}` : '';
+    
+    if (chatUsername.toLowerCase() === CHANNEL_USERNAME.toLowerCase()) {
+        const text = msg.caption || msg.text || '';
         const photo = msg.photo ? msg.photo[msg.photo.length - 1].file_id : null;
         const replyMarkup = msg.reply_markup || null;
         
-        if (text || photo) {
+        if (text) {
+            const lowerText = text.toLowerCase();
+            const words = lowerText.split(/\s+/);
+            
             const postContent = {
-                text: text || '',
+                text: text,
                 photo: photo,
                 replyMarkup: replyMarkup
             };
 
-            if (text) {
-                const words = text.split(/\s+/);
-                words.forEach(word => {
-                    const cleanWord = word.replace(/[^a-z0-9._]/g, '').toLowerCase();
-                    if (cleanWord.length >= 1) {
-                        if (!postDatabase[cleanWord]) {
-                            postDatabase[cleanWord] = [];
-                        }
-                        const exists = postDatabase[cleanWord].some(p => p.text === text);
-                        if (!exists) {
-                            postDatabase[cleanWord].push(postContent);
-                            savePosts();
-                        }
+            words.forEach(word => {
+                const cleanWord = word.replace(/[^a-z0-9]/g, '');
+                if (cleanWord.length > 2) {
+                    if (!postDatabase[cleanWord]) {
+                        postDatabase[cleanWord] = [];
                     }
-                });
-            }
+                    const exists = postDatabase[cleanWord].some(p => p.text === text);
+                    if (!exists) {
+                        postDatabase[cleanWord].push(postContent);
+                        savePosts();
+                    }
+                }
+            });
 
-            if (!postDatabase['all_posts']) {
-                postDatabase['all_posts'] = [];
-            }
-            const globalExists = postDatabase['all_posts'].some(p => p.text === text);
-            if (!globalExists) {
-                postDatabase['all_posts'].push(postContent);
-                savePosts();
-            }
-
+            // Broadcast directly to all existing users instantly
             botUsers.forEach(userId => {
                 sendPostToUser(userId, postContent);
             });
+
+            console.log("New channel post saved and broadcasted!");
         }
     }
 });
 
+// Helper function to send post cleanly
 function sendPostToUser(userId, post) {
     const options = {};
     if (post.replyMarkup) {
@@ -105,18 +102,14 @@ function sendPostToUser(userId, post) {
     if (post.photo) {
         bot.sendPhoto(userId, post.photo, { 
             caption: post.text, 
-            parse_mode: "Markdown",
             ...options 
-        }).catch(err => {
-            bot.sendPhoto(userId, post.photo, { caption: post.text, ...options }).catch(e => {});
-        });
-    } else if (post.text) {
-        bot.sendMessage(userId, post.text, { parse_mode: "Markdown", ...options }).catch(err => {
-            bot.sendMessage(userId, post.text, options).catch(e => {});
-        });
+        }).catch(err => {});
+    } else {
+        bot.sendMessage(userId, post.text, options).catch(err => {});
     }
 }
 
+// Handle user interactions, English /start message, and instant search
 bot.on('message', (msg) => {
     const chatId = msg.chat.id;
     const text = msg.text;
@@ -137,34 +130,18 @@ bot.on('message', (msg) => {
             
             bot.sendMessage(chatId, welcomeText, { parse_mode: "Markdown" });
         } else {
-            const query = text.trim().toLowerCase().replace(/[^a-z0-9._]/g, '');
-            let foundPosts = [];
-
+            const query = text.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+            
             if (postDatabase[query] && postDatabase[query].length > 0) {
-                foundPosts = postDatabase[query];
-            } else {
-                for (let key in postDatabase) {
-                    if (key.includes(query) || query.includes(key)) {
-                        if (Array.isArray(postDatabase[key])) {
-                            postDatabase[key].forEach(p => {
-                                if (!foundPosts.some(existing => existing.text === p.text)) {
-                                    foundPosts.push(p);
-                                }
-                            });
-                        }
-                    }
-                }
-            }
-
-            if (foundPosts.length > 0) {
-                foundPosts.forEach(post => {
+                postDatabase[query].forEach(post => {
                     sendPostToUser(chatId, post);
                 });
             } else {
+                // Updated message as per your request
                 bot.sendMessage(chatId, `Promo code for "${text}" is not available right now. You will get it as soon as it arrives!`);
             }
         }
     }
 });
 
-console.log("Bot is running successfully...");
+console.log("Bot is running with updated search reply...");
