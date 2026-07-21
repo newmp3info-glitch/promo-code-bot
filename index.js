@@ -46,16 +46,15 @@ server.listen(PORT, () => {
     console.log(`Server is listening on port ${PORT}`);
 });
 
-// বুদ্ধিমান ফরম্যাটিং ফাংশন: লিস্ট পোস্ট হলে লিংক অক্ষুণ্ণ রাখবে, আর প্রমো কোড পোস্ট হলে সেটিকে কপি-ফ্রেন্ডলি করবে
+// স্মার্ট ফরম্যাটিং ফাংশন: লিস্ট পোস্ট হলে লিংক ও টেক্সট অক্ষুণ্ণ রাখবে, আর প্রমো কোড পোস্ট হলে সেটিকে কপি-ফ্রেন্ডلی করবে
 function smartFormatPost(text, entities) {
     if (!text) return '';
 
-    // যদি পোস্টটি "All Yono Apps" বা গেমের লিস্ট হয়, তবে কোনো কাটছাঁট না করে অরিজিনাল লিংক ও ফরম্যাট হুবহু রাখা হবে
+    // যদি পোস্টটি "All Yono Apps" বা গেমের লিস্ট হয়, তবে কোনো কাটছাঁট ছাড়াই অরিজিনাল টেক্সট ও লিংক হুবহু রাখা হবে
     if (text.includes('All Yono Apps') || text.includes('Download') || (text.split('\n').length > 5 && !text.includes('PROMO CODE'))) {
         return text; 
     }
 
-    // প্রমো কোড পোস্টগুলোর জন্য ফরম্যাটিং
     let downloadUrl = '';
     if (entities && entities.length > 0) {
         entities.forEach(entity => {
@@ -130,7 +129,6 @@ function savePostContent(msg) {
     let rawText = msg.caption || msg.text || '';
     let entities = msg.caption_entities || msg.entities || [];
     
-    // লিস্ট পোস্ট হলে অরিজিনাল টেক্সট থাকবে, প্রমো কোড হলে স্মার্ট ফরম্যাট হবে
     let text = smartFormatPost(rawText, entities);
     if (!text) text = rawText;
     
@@ -243,4 +241,32 @@ bot.on('message', (msg) => {
                 }
             }
 
-(code truncated for response limit, copy full code above)
+            if (foundPosts.length > 0) {
+                foundPosts.forEach(post => {
+                    sendPostToUser(chatId, post);
+                });
+            } else {
+                bot.sendMessage(chatId, `No promo code or post found for "${text}".`);
+            }
+        }
+    }
+});
+
+function sendPostToUser(userId, post) {
+    const options = { parse_mode: "HTML" };
+    if (post.replyMarkup) {
+        options.reply_markup = post.replyMarkup;
+    }
+
+    if (post.photo) {
+        bot.sendPhoto(userId, post.photo, { caption: post.text, ...options }).catch(err => {
+            bot.sendPhoto(userId, post.photo, { caption: post.text, reply_markup: post.replyMarkup }).catch(e => {});
+        });
+    } else if (post.text) {
+        bot.sendMessage(userId, post.text, options).catch(err => {
+            bot.sendMessage(userId, post.text, { reply_markup: post.replyMarkup }).catch(e => {});
+        });
+    }
+}
+
+console.log("Bot with intact links and formatting is running successfully...");
