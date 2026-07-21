@@ -5,7 +5,6 @@ const fs = require('fs');
 const token = process.env.BOT_TOKEN;
 const bot = new TelegramBot(token, { polling: true });
 
-const SOURCE_CHANNEL = '@AllYonoRummyCode';
 const TARGET_CHANNEL = '@VipYonoFreeCode';
 
 const POSTS_FILE = 'posts.json';
@@ -47,12 +46,8 @@ server.listen(PORT, () => {
     console.log(`Server is listening on port ${PORT}`);
 });
 
-// পোস্ট প্রসেস করার কমন ফাংশন (যাতে ফরোয়ার্ড বা নতুন পোস্ট উভয়ই কাজ করে)
-function handleIncomingPost(msg) {
-    let text = msg.caption || msg.text || '';
-    const photo = msg.photo ? msg.photo[msg.photo.length - 1].file_id : null;
-    const replyMarkup = msg.reply_markup || null;
-    
+// এই ফাংশনটি যেকোনো নতুন পোস্ট বা ফরোয়ার্ড করা পোস্ট সাথে সাথে সেভ করে নেবে
+function savePostContent(text, photo, replyMarkup) {
     if (text || photo) {
         const postContent = {
             text: text || '',
@@ -88,28 +83,48 @@ function handleIncomingPost(msg) {
     }
 }
 
-// সোর্স চ্যানেল থেকে নতুন পোস্ট আসলে
+// চ্যানেলে নতুন পোস্ট বা ফরোয়ার্ড করা পোস্ট আসলে সরাসরি ধরে ফেলবে
 bot.on('channel_post', (msg) => {
     const chatUsername = msg.chat.username ? `@${msg.chat.username.toLowerCase()}` : '';
-    if (chatUsername === SOURCE_CHANNEL.toLowerCase()) {
-        handleIncomingPost(msg);
-        
+    
+    // চেক করা হচ্ছে পোস্টটি কি আপনার টার্গেট চ্যানেলেই দেওয়া বা ফরোয়ার্ড করা হয়েছে কি না
+    if (chatUsername === TARGET_CHANNEL.toLowerCase()) {
         let text = msg.caption || msg.text || '';
         const photo = msg.photo ? msg.photo[msg.photo.length - 1].file_id : null;
         const replyMarkup = msg.reply_markup || null;
-        
-        const options = {};
-        if (replyMarkup) options.reply_markup = replyMarkup;
 
-        if (photo) {
-            bot.sendPhoto(TARGET_CHANNEL, photo, { caption: text, parse_mode: "Markdown", ...options }).catch(e => {});
-        } else if (text) {
-            bot.sendMessage(TARGET_CHANNEL, text, { parse_mode: "Markdown", ...options }).catch(e => {});
-        }
+        savePostContent(text, photo, replyMarkup);
     }
 });
 
-// টার্গেট চ্যানেলে যদি আপনি পোস্ট ফরওয়ার্ড করেন, সেটিও ডাটাবেজে সেভ হবে
+// রিস্টোর করার ফাংশন
+function restorePostsToChannel(chatId) {
+    if (postDatabase['all_posts'] && postDatabase['all_posts'].length > 0) {
+        bot.sendMessage(chatId, `Starting to restore ${postDatabase['all_posts'].length} posts to the channel...`);
+        
+        postDatabase['all_posts'].forEach((post, index) => {
+            setTimeout(() => {
+                const options = {};
+                if (post.replyMarkup) {
+                    options.reply_markup = post.replyMarkup;
+                }
+
+                if (post.photo) {
+                    bot.sendPhoto(TARGET_CHANNEL, post.photo, { 
+                        caption: post.text, 
+                        parse_mode: "Markdown",
+                        ...options 
+                    }).catch(err => {});
+                } else if (post.text) {
+                    bot.sendMessage(TARGET_CHANNEL, post.text, { parse_mode: "Markdown", ...options }).catch(err => {});
+                }
+            }, index * 1000); // প্রতি ১ সেকেন্ড পর পর একটি করে পোস্ট চ্যানেলে পাঠাবে
+        });
+    } else {
+        bot.sendMessage(chatId, "No saved posts found in database to restore!");
+    }
+}
+
 bot.on('message', (msg) => {
     const chatId = msg.chat.id;
     const text = msg.text;
@@ -117,12 +132,6 @@ bot.on('message', (msg) => {
     if (!botUsers.includes(chatId)) {
         botUsers.push(chatId);
         saveUsers();
-    }
-
-    // যদি আপনার টার্গেট চ্যানেলে পোস্ট ফরোয়ার্ড করা হয়
-    if (msg.chat.username && `@${msg.chat.username.toLowerCase()}` === TARGET_CHANNEL.toLowerCase()) {
-        handleIncomingPost(msg);
-        return;
     }
 
     if (text) {
@@ -189,32 +198,4 @@ function sendPostToUser(userId, post) {
     }
 }
 
-function restorePostsToChannel(chatId) {
-    if (postDatabase['all_posts'] && postDatabase['all_posts'].length > 0) {
-        bot.sendMessage(chatId, `Starting to restore ${postDatabase['all_posts'].length} posts to the channel...`);
-        
-        postDatabase['all_posts'].forEach((post, index) => {
-            setTimeout(() => {
-                const options = {};
-                if (post.replyMarkup) {
-                    options.reply_markup = post.replyMarkup;
-                }
-
-                if (post.photo) {
-                    bot.sendPhoto(TARGET_CHANNEL, post.photo, { 
-                        caption: post.text, 
-                        parse_mode: "Markdown",
-                        ...options 
-                    }).catch(err => {});
-                } else if (post.text) {
-                    bot.sendMessage(TARGET_CHANNEL, post.text, { parse_mode: "Markdown", ...options }).catch(err => {});
-                }
-            }, index * 1000);
-        });
-    } else {
-        bot.sendMessage(chatId, "No saved posts found in database to restore!");
-    }
-}
-
-console.log("Bot with forward capture and restore is running successfully...");
-                             
+console.log("Bot with direct channel capture is running successfully...");
