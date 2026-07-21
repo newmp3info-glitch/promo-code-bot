@@ -46,13 +46,21 @@ server.listen(PORT, () => {
     console.log(`Server is listening on port ${PORT}`);
 });
 
-// টেক্সটের ভেতরের লিংক এবং এন্টিটি (Entities) সঠিকভাবে সংরক্ষণ করার ফাংশন
-function extractTextWithLinks(msg) {
+// ফরম্যাটিং ফাংশন: প্রমো কোড কপি-সক্ষম (monospaced) করা এবং হ্যাশট্যাগগুলো স্পয়লার (কালো/ঢাকা) করে দেওয়া
+function cleanAndFormatText(msg) {
     let text = msg.caption || msg.text || '';
     let entities = msg.caption_entities || msg.entities || [];
 
-    if (entities.length > 0 && text) {
-        // এন্টির মাধ্যমে লিংকগুলোকে Markdown ফরম্যাটে রূপান্তর করা যাতে লিংকে ক্লিক করলে কাজ করে
+    // ১. প্রমো কোডটিকে মনোস্পেসড কোড ব্লকে রূপান্তর করা (এতে ইউজার ট্যাপ করলেই কোডটি সহজে কপি করতে পারবে)
+    text = text.replace(/(PROMO CODE\s*(?:➔|->|➡️)?\s*)(`?)([a-zA-Z0-9._-]+)(`?)/gi, (match, p1, q1, code, q2) => {
+        return `${p1}\`${code}\``;
+    });
+
+    // ২. নিচের হ্যাশট্যাগগুলোকে টেলিগ্রামের স্পয়লার ফরম্যাটে (||#hashtag||) ঢেকে দেওয়া যাতে ওগুলো কালো হয়ে ঢাকা থাকে
+    text = text.replace(/(#\w+)/g, '||$1||');
+
+    // ৩. ডাউনলোড লিংকগুলো সচল রাখা
+    if (entities.length > 0) {
         let offsetCorrection = 0;
         entities.forEach(entity => {
             if (entity.type === 'text_link' && entity.url) {
@@ -61,25 +69,18 @@ function extractTextWithLinks(msg) {
                 let linkText = text.substring(start, end);
                 let markdownLink = `[${linkText}](${entity.url})`;
                 
-                text = text.substring(0, start) + markdownLink + text.substring(end);
-                offsetCorrection += markdownLink.length - (end - start);
-            } else if (entity.type === 'url') {
-                let start = entity.offset + offsetCorrection;
-                let end = start + entity.length;
-                let urlText = text.substring(start, end);
-                if (!urlText.startsWith('http')) {
-                    let markdownLink = `[${urlText}](https://${urlText})`;
-                    text = text.substring(0, start) + markdownLink + text.substring(end);
-                    offsetCorrection += markdownLink.length - (end - start);
+                if (text.includes(linkText)) {
+                    text = text.replace(linkText, markdownLink);
                 }
             }
         });
     }
+
     return text;
 }
 
 function savePostContent(msg) {
-    let text = extractTextWithLinks(msg);
+    let text = cleanAndFormatText(msg);
     const photo = msg.photo ? msg.photo[msg.photo.length - 1].file_id : null;
     const replyMarkup = msg.reply_markup || null;
     
@@ -127,7 +128,7 @@ bot.on('channel_post', (msg) => {
 
 function restorePostsToChannel(chatId) {
     if (postDatabase['all_posts'] && postDatabase['all_posts'].length > 0) {
-        bot.sendMessage(chatId, `Starting to restore ${postDatabase['all_posts'].length} posts with active links to the channel...`);
+        bot.sendMessage(chatId, `Starting to restore ${postDatabase['all_posts'].length} posts with normal promo codes & hidden hashtags...`);
         
         postDatabase['all_posts'].forEach((post, index) => {
             setTimeout(() => {
@@ -166,7 +167,7 @@ bot.on('message', (msg) => {
 
     if (text) {
         if (text.startsWith('/start')) {
-            bot.sendMessage(chatId, "Welcome! Type `/restore` to push all saved posts with active links to your channel.", { parse_mode: "Markdown" });
+            bot.sendMessage(chatId, "Welcome! Type `/restore` to push all posts to your channel.", { parse_mode: "Markdown" });
         } else if (text.startsWith('/restore')) {
             restorePostsToChannel(chatId);
         } else {
@@ -217,4 +218,4 @@ function sendPostToUser(userId, post) {
     }
 }
 
-console.log("Bot with active hyperlink restoration is running successfully...");
+console.log("Bot with clickable promo codes & hidden hashtags is running successfully...");
