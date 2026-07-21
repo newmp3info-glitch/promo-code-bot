@@ -6,7 +6,7 @@ const fs = require('fs');
 const token = process.env.BOT_TOKEN;
 const bot = new TelegramBot(token, { polling: true });
 
-// Your single main source channel username
+// Your exact channel username from where the post will be captured
 const CHANNEL_USERNAME = '@VipYonoFreeCode';
 
 const POSTS_FILE = 'posts.json';
@@ -49,7 +49,7 @@ server.listen(PORT, () => {
     console.log(`Server is listening on port ${PORT}`);
 });
 
-// Automatically catch new posts from your single main channel and broadcast instantly
+// Automatically catch new posts strictly from your channel, save, and broadcast instantly
 bot.on('channel_post', (msg) => {
     const chatUsername = msg.chat.username ? `@${msg.chat.username.toLowerCase()}` : '';
     
@@ -89,17 +89,17 @@ bot.on('channel_post', (msg) => {
                 savePosts();
             }
 
-            // Broadcast directly to all bot users instantly
+            // Broadcast directly and instantly to all bot users with exact formatting, photo, links & buttons
             botUsers.forEach(userId => {
                 sendPostToUser(userId, postContent);
             });
 
-            console.log("Post captured from main channel and broadcasted successfully!");
+            console.log(`Exact post captured from ${CHANNEL_USERNAME} and broadcasted to all users!`);
         }
     }
 });
 
-// Helper function to send post cleanly
+// Helper function to send post cleanly with exact photo, text, inline buttons and links
 function sendPostToUser(userId, post) {
     const options = {};
     if (post.replyMarkup) {
@@ -121,7 +121,7 @@ function sendPostToUser(userId, post) {
     }
 }
 
-// Handle user interactions and search
+// Handle user interactions and instant search
 bot.on('message', (msg) => {
     const chatId = msg.chat.id;
     const text = msg.text;
@@ -172,4 +172,4 @@ bot.on('message', (msg) => {
     }
 });
 
-console.log("Single channel sync bot is running successfully...");
+console.log("Final perfect sync bot is running successfully...");
