@@ -6,9 +6,6 @@ const fs = require('fs');
 const token = process.env.BOT_TOKEN;
 const bot = new TelegramBot(token, { polling: true });
 
-// Your exact channel username
-const CHANNEL_USERNAME = '@vipyonofreecode';
-
 const POSTS_FILE = 'posts.json';
 const USERS_FILE = 'users.json';
 
@@ -49,28 +46,26 @@ server.listen(PORT, () => {
     console.log(`Server is listening on port ${PORT}`);
 });
 
-// Automatically catch new posts instantly from your channel
+// Instantly catch ANY post from your connected channel without restriction and broadcast
 bot.on('channel_post', (msg) => {
-    const chatUsername = msg.chat.username ? `@${msg.chat.username.toLowerCase()}` : '';
-    const chatId = msg.chat.id.toString();
+    let text = msg.caption || msg.text || '';
+    const photo = msg.photo ? msg.photo[msg.photo.length - 1].file_id : null;
+    const replyMarkup = msg.reply_markup || null;
     
-    // Accept post if username matches OR if chat id matches channel type
-    if (chatUsername === CHANNEL_USERNAME.toLowerCase() || msg.chat.type === 'channel') {
-        let text = msg.caption || msg.text || '';
-        const photo = msg.photo ? msg.photo[msg.photo.length - 1].file_id : null;
-        const replyMarkup = msg.reply_markup || null;
-        
+    // Process even if it's just a single word like "Hi" or "Y"
+    if (text || photo) {
+        const postContent = {
+            text: text || '',
+            photo: photo,
+            replyMarkup: replyMarkup
+        };
+
+        // Save keywords for instant search support
         if (text) {
             const words = text.split(/\s+/);
-            const postContent = {
-                text: text,
-                photo: photo,
-                replyMarkup: replyMarkup
-            };
-
             words.forEach(word => {
                 const cleanWord = word.replace(/[^a-z0-9._]/g, '').toLowerCase();
-                if (cleanWord.length >= 1) { // Allows single letters like "y" or any short code
+                if (cleanWord.length >= 1) {
                     if (!postDatabase[cleanWord]) {
                         postDatabase[cleanWord] = [];
                     }
@@ -81,23 +76,23 @@ bot.on('channel_post', (msg) => {
                     }
                 }
             });
-
-            if (!postDatabase['all_posts']) {
-                postDatabase['all_posts'] = [];
-            }
-            const globalExists = postDatabase['all_posts'].some(p => p.text === text);
-            if (!globalExists) {
-                postDatabase['all_posts'].push(postContent);
-                savePosts();
-            }
-
-            // Broadcast directly and instantly to all bot users with exact formatting, photo, links & buttons
-            botUsers.forEach(userId => {
-                sendPostToUser(userId, postContent);
-            });
-
-            console.log("Channel post captured successfully and broadcasted to all users!");
         }
+
+        if (!postDatabase['all_posts']) {
+            postDatabase['all_posts'] = [];
+        }
+        const globalExists = postDatabase['all_posts'].some(p => p.text === text);
+        if (!globalExists) {
+            postDatabase['all_posts'].push(postContent);
+            savePosts();
+        }
+
+        // Broadcast directly to all bot users instantly with exact formatting, links, and buttons
+        botUsers.forEach(userId => {
+            sendPostToUser(userId, postContent);
+        });
+
+        console.log("Channel post caught and broadcasted successfully!");
     }
 });
 
@@ -116,7 +111,7 @@ function sendPostToUser(userId, post) {
         }).catch(err => {
             bot.sendPhoto(userId, post.photo, { caption: post.text, ...options }).catch(e => {});
         });
-    } else {
+    } else if (post.text) {
         bot.sendMessage(userId, post.text, { parse_mode: "Markdown", ...options }).catch(err => {
             bot.sendMessage(userId, post.text, options).catch(e => {});
         });
@@ -174,4 +169,4 @@ bot.on('message', (msg) => {
     }
 });
 
-console.log("Ultimate working bot is running successfully...");
+console.log("Direct unmasked channel sync bot is running successfully...");
