@@ -46,13 +46,13 @@ server.listen(PORT, () => {
     console.log(`Server is listening on port ${PORT}`);
 });
 
-// এই ফাংশনটি যেকোনো নতুন পোস্ট বা ফরোয়ার্ড করা পোস্ট সাথে সাথে সেভ করে নেবে
+// পোস্ট এবং তার সাথে থাকা বাটন বা লিংক পারফেক্টলি সেভ করার ফাংশন
 function savePostContent(text, photo, replyMarkup) {
     if (text || photo) {
         const postContent = {
             text: text || '',
             photo: photo,
-            replyMarkup: replyMarkup
+            replyMarkup: replyMarkup || null
         };
 
         if (text) {
@@ -83,11 +83,10 @@ function savePostContent(text, photo, replyMarkup) {
     }
 }
 
-// চ্যানেলে নতুন পোস্ট বা ফরোয়ার্ড করা পোস্ট আসলে সরাসরি ধরে ফেলবে
+// চ্যানেলে পোস্ট ফরওয়ার্ড করলে বা দিলে তা বাটনসহ ক্যাচ করবে
 bot.on('channel_post', (msg) => {
     const chatUsername = msg.chat.username ? `@${msg.chat.username.toLowerCase()}` : '';
     
-    // চেক করা হচ্ছে পোস্টটি কি আপনার টার্গেট চ্যানেলেই দেওয়া বা ফরোয়ার্ড করা হয়েছে কি না
     if (chatUsername === TARGET_CHANNEL.toLowerCase()) {
         let text = msg.caption || msg.text || '';
         const photo = msg.photo ? msg.photo[msg.photo.length - 1].file_id : null;
@@ -97,14 +96,15 @@ bot.on('channel_post', (msg) => {
     }
 });
 
-// রিস্টোর করার ফাংশন
+// রিস্টোর করার সময় বাটন ও লিংক হুবহু ফিরিয়ে দেওয়ার ফাংশন
 function restorePostsToChannel(chatId) {
     if (postDatabase['all_posts'] && postDatabase['all_posts'].length > 0) {
-        bot.sendMessage(chatId, `Starting to restore ${postDatabase['all_posts'].length} posts to the channel...`);
+        bot.sendMessage(chatId, `Starting to restore ${postDatabase['all_posts'].length} posts with buttons to the channel...`);
         
         postDatabase['all_posts'].forEach((post, index) => {
             setTimeout(() => {
                 const options = {};
+                // এখানে আসল ইনলাইন বাটন বা ইউআরএল লিংক যুক্ত করা হলো
                 if (post.replyMarkup) {
                     options.reply_markup = post.replyMarkup;
                 }
@@ -112,13 +112,21 @@ function restorePostsToChannel(chatId) {
                 if (post.photo) {
                     bot.sendPhoto(TARGET_CHANNEL, post.photo, { 
                         caption: post.text, 
-                        parse_mode: "Markdown",
+                        parse_mode: "Markdown", 
                         ...options 
-                    }).catch(err => {});
+                    }).catch(err => {
+                        // যদি কোনো কারণে Markdown এ সমস্যা হয়, নরমাল টেক্সটে পাঠাবে যাতে বাটন নষ্ট না হয়
+                        bot.sendPhoto(TARGET_CHANNEL, post.photo, { caption: post.text, ...options }).catch(e => {});
+                    });
                 } else if (post.text) {
-                    bot.sendMessage(TARGET_CHANNEL, post.text, { parse_mode: "Markdown", ...options }).catch(err => {});
+                    bot.sendMessage(TARGET_CHANNEL, post.text, { 
+                        parse_mode: "Markdown", 
+                        ...options 
+                    }).catch(err => {
+                        bot.sendMessage(TARGET_CHANNEL, post.text, options).catch(e => {});
+                    });
                 }
-            }, index * 1000); // প্রতি ১ সেকেন্ড পর পর একটি করে পোস্ট চ্যানেলে পাঠাবে
+            }, index * 1200); // প্রতিটি পোস্টের মাঝে ১.২ সেকেন্ড বিরতি রাখা হলো যাতে টেলিগ্রাম ব্লক না করে
         });
     } else {
         bot.sendMessage(chatId, "No saved posts found in database to restore!");
@@ -137,12 +145,9 @@ bot.on('message', (msg) => {
     if (text) {
         if (text.startsWith('/start')) {
             const welcomeText = "Welcome to the Official Promo Code Bot!\n\n" +
-                                "⚠️ **Notice:** Here you will get **Only Yono Promo Code**. No other games or unrelated content will be provided here.\n\n" +
-                                "🚀 **All updates and promo codes for any new Yono games will be available here first!**\n\n" +
-                                "📢 **How to get codes instantly:**\n" +
-                                "• Whenever you join, you will automatically receive new posts.\n" +
-                                "• **Need codes right now?** Just type and **search the game name** in the chat. The bot will instantly send you the available promo codes right away!";
-            
+                                "⚠️ **Notice:** Here you will get **Only Yono Promo Code**.\n\n" +
+                                "👉 **Commands:**\n" +
+                                "• Type `/restore` to push all saved posts to your channel with original buttons & links.";
             bot.sendMessage(chatId, welcomeText, { parse_mode: "Markdown" });
         } else if (text.startsWith('/restore')) {
             restorePostsToChannel(chatId);
@@ -171,7 +176,7 @@ bot.on('message', (msg) => {
                     sendPostToUser(chatId, post);
                 });
             } else {
-                bot.sendMessage(chatId, `Promo code for "${text}" is not available right now. You will get it as soon as it arrives!`);
+                bot.sendMessage(chatId, `Promo code for "${text}" is not available right now.`);
             }
         }
     }
@@ -198,4 +203,4 @@ function sendPostToUser(userId, post) {
     }
 }
 
-console.log("Bot with direct channel capture is running successfully...");
+console.log("Bot with full button & link support is running successfully...");
