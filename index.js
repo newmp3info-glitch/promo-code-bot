@@ -46,65 +46,47 @@ server.listen(PORT, () => {
     console.log(`Server is listening on port ${PORT}`);
 });
 
-// নিখুঁত টেক্সট প্রসেসিং ফাংশন
+// একদম সহজ ও নিখুঁত ফরম্যাটিং ফাংশন (যাতে কোনো এরর না আসে)
 function cleanAndFormatText(msg) {
     let text = msg.caption || msg.text || '';
     let entities = msg.caption_entities || msg.entities || [];
 
-    // ১. প্রমো কোডকে টেলিগ্রামের কোড ফরম্যাটে (`) রূপান্তর করা, যাতে ইউজার একবার ট্যাপ করলেই কপি হয়ে যায়
-    text = text.replace(/(PROMO CODE\s*(?:➔|->|➡️)?\s*)(`?)([a-zA-Z0-9._-]+)(`?)/gi, (match, p1, q1, code, q2) => {
-        return `${p1}\`${code}\``;
-    });
-
-    // ২. ডাউনলোড লিংক বা "Download Now" অংশটিকে নিখুঁতভাবে Markdown লিংকে রূপান্তর করা
-    if (entities.length > 0) {
-        let downloadUrl = '';
-        // প্রথমে টেলিগ্রামের আসল এন্টিটি থেকে ডাউনলোড লিংকটি খুঁজে বের করা
+    // ১. টেলিগ্রামের আসল এন্টি티 থেকে ডাউনলোড লিংক বের করে নেওয়া
+    let downloadUrl = '';
+    if (entities && entities.length > 0) {
         entities.forEach(entity => {
             if (entity.type === 'text_link' && entity.url) {
-                if (entity.url.includes('http') && !entity.url.includes('t.me')) {
-                    downloadUrl = entity.url;
-                }
-            } else if (entity.type === 'url') {
-                // ইউআরএল এন্টিটি থাকলে তা ফেচ করা
+                downloadUrl = entity.url;
             }
         });
+    }
 
-        // যদি সরাসরি টেক্সট লিংক না পাওয়া যায়, তবে সাধারণ নিয়মে খোঁজা
-        entities.forEach(entity => {
-            if (entity.type === 'text_link' && entity.url) {
-                let start = entity.offset;
-                let end = start + entity.length;
-                let linkText = text.substring(start, end);
-                
-                if (linkText.toLowerCase().includes('download') || linkText.toLowerCase().includes('link')) {
-                    downloadUrl = entity.url;
-                }
+    // ২. প্রমো কোড অংশটিকে কপি করার উপযোগী মনোস্পেস কোড (`code`) ফরম্যাটে করা
+    let lines = text.split('\n');
+    let formattedLines = lines.map(line => {
+        // হ্যাশট্যাগ লাইন হলে সেগুলোকে স্পয়লার (কালো করে ঢেকে দেওয়া)
+        if (line.trim().startsWith('#') || line.includes('#Verified')) {
+            return `||${line.trim()}||`;
+        }
+        
+        // প্রমো কোড লাইন হলে কোড ব্লক করা যাতে ট্যাপ করলে কপি হয়
+        if (line.toLowerCase().includes('promo code') && line.includes('➔')) {
+            let parts = line.split('➔');
+            if (parts.length > 1) {
+                let codePart = parts[1].trim();
+                return `${parts[0]}➔ \`${codePart}\``;
             }
-        });
-
-        // যদি ডাউনলোড লিংক পাওয়া যায়, তবে "Download Now" এর সাথে সেটি যুক্ত করে দেওয়া
-        if (downloadUrl) {
-            // আগের আজেবাজে লিংক টেক্সট পরিষ্কার করে স্ট্যান্ডার্ড "Download Now" তৈরি করা
-            text = text.replace(/([A-Z0-9\s]*LINK\s*[➔->➡️]*\s*Download\s*Now📱?|Download\s*Now📱?)/gi, `[Download Now 📱](${downloadUrl})`);
         }
-    }
-
-    // ৩. হ্যাশট্যাগগুলোকে কোনো এক্সট্রা ব্র্যাকেট বা টেক্সট ছাড়াই সম্পূর্ণ কালো স্পয়লার (||#tag||) করা
-    const hashtagRegex = /#\w+/g;
-    let match;
-    let tagsToHide = [];
-    while ((match = hashtagRegex.exec(text)) !== null) {
-        if (!tagsToHide.includes(match[0])) {
-            tagsToHide.push(match[0]);
-        }
-    }
-    
-    tagsToHide.forEach(tag => {
-        let escapedTag = tag.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-        let regex = new RegExp(escapedTag, 'g');
-        text = text.replace(regex, `||${tag}||`);
+        
+        return line;
     });
+
+    text = formattedLines.join('\n');
+
+    // ৩. ডাউনলোড লিংকটি নির্দিষ্ট স্থানে বসিয়ে দেওয়া
+    if (downloadUrl) {
+        text = text.replace(/Download\s*Now/gi, `[Download Now 📱](${downloadUrl})`);
+    }
 
     return text;
 }
@@ -158,7 +140,7 @@ bot.on('channel_post', (msg) => {
 
 function restorePostsToChannel(chatId) {
     if (postDatabase['all_posts'] && postDatabase['all_posts'].length > 0) {
-        bot.sendMessage(chatId, `Starting to restore ${postDatabase['all_posts'].length} posts with perfect formatting...`);
+        bot.sendMessage(chatId, `Starting to restore ${postDatabase['all_posts'].length} posts...`);
         
         postDatabase['all_posts'].forEach((post, index) => {
             setTimeout(() => {
@@ -231,10 +213,6 @@ bot.on('message', (msg) => {
     }
 });
 
-function sendPostUser(userId, post) {
-    // helper placeholder
-}
-
 function sendPostToUser(userId, post) {
     const options = { parse_mode: "Markdown" };
     if (post.replyMarkup) {
@@ -252,4 +230,4 @@ function sendPostToUser(userId, post) {
     }
 }
 
-console.log("Bot with ultimate text formatting is running successfully...");
+console.log("Bot with clean stable code is running successfully...");
