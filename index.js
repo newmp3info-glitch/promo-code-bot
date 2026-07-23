@@ -46,7 +46,7 @@ server.listen(PORT, () => {
     console.log(`Server is listening on port ${PORT}`);
 });
 
-// স্মার্ট ফরম্যাটিং ফাংশন
+// স্মার্ট ফরম্যাটিং ফাংশন (অপরিবর্তিত ও পারফেক্ট)
 function smartFormatPost(text, entities) {
     if (!text) return '';
 
@@ -54,7 +54,6 @@ function smartFormatPost(text, entities) {
         return text; 
     }
 
-    // ডাউনলোড লিংক বের করার লজিক (সম্পূর্ণ অপরিবর্তিত)
     let downloadUrl = '';
     if (entities && entities.length > 0) {
         entities.forEach(entity => {
@@ -93,7 +92,6 @@ function smartFormatPost(text, entities) {
         if (!trimmed) return;
         let lower = trimmed.toLowerCase();
 
-        // ১. হ্যাশট্যাগ ফিল্টার
         if (trimmed.startsWith('#')) {
             let tags = trimmed.match(/#\w+/g);
             if (tags) {
@@ -106,14 +104,14 @@ function smartFormatPost(text, entities) {
 
         nonEmtpyCount++;
 
-        // ২. সর্বউপরের গেমের নাম / টাইটেল লাইনটি ১০০% বোল্ড হবে
+        // সর্বউপরের টাইটেল লাইন বোল্ড
         if (nonEmtpyCount === 1) {
             let cleanLine = trimmed.replace(/<[^>]*>/g, '');
             formattedLines.push(`<b>${cleanLine}</b>`);
             return;
         }
 
-        // ৩. প্রমো কোড ট্যাপ করলে কপির জন্য (অপরিবর্তিত)
+        // প্রমো কোড কপি-অন-ট্যাপ
         if (lower.includes('code') && !lower.startsWith('http') && !lower.includes('app link') && !lower.includes('join this channel') && !lower.includes('never miss')) {
             let parts = trimmed.split(/➔|->|➜|:/);
             if (parts.length > 1) {
@@ -126,7 +124,7 @@ function smartFormatPost(text, entities) {
                 formattedLines.push(`<code>${safeTrimmed}</code>`);
             }
         } 
-        // ৪. ডাউনলোড লিংক (অপরিবর্তিত)
+        // ডাউনলোড লিংক
         else if (lower.includes('download now') || lower.includes('game link') || lower.includes('link')) {
             if (downloadUrl) {
                 if (lower.includes('download now')) {
@@ -139,12 +137,12 @@ function smartFormatPost(text, entities) {
                 formattedLines.push(trimmed);
             }
         } 
-        // ৫. মিনিমাম উইথড্রল লাইনটি বোল্ড হবে
+        // মিনিমাম উইথড্রল বোল্ড
         else if (lower.includes('minimum') || lower.includes('withdrawal')) {
             let cleanLine = trimmed.replace(/<[^>]*>/g, '');
             formattedLines.push(`<b>${cleanLine}</b>`);
         } 
-        // ৬. নিউ ইউজার বোনাস এবং নিচের জয়েন চ্যানেল মেসেজ দুটোই Quote Box-এ থাকবে
+        // নিউ ইউজার ও চ্যানেল জয়েন মেসেজ Quote Box
         else if (
             lower.includes('signup bonus') || 
             lower.includes('new users') || 
@@ -215,25 +213,9 @@ function savePostContent(msg) {
         postContent = {
             text: text,
             photo: photo,
-            replyMarkup: replyMarkup || null
+            replyMarkup: replyMarkup || null,
+            timestamp: Date.now() // নতুন টাইমস্ট্যাম্প যুক্ত করা হলো
         };
-
-        if (rawText) {
-            const words = rawText.split(/\s+/);
-            words.forEach(word => {
-                const cleanWord = word.replace(/[^a-z0-9._]/g, '').toLowerCase();
-                if (cleanWord.length >= 2) {
-                    if (!postDatabase[cleanWord]) {
-                        postDatabase[cleanWord] = [];
-                    }
-                    const exists = postDatabase[cleanWord].some(p => p.text === text);
-                    if (!exists) {
-                        postDatabase[cleanWord].push(postContent);
-                        savePosts();
-                    }
-                }
-            });
-        }
 
         if (!postDatabase['all_posts']) {
             postDatabase['all_posts'] = [];
@@ -291,6 +273,44 @@ function restorePostsToChannel(chatId) {
     }
 }
 
+// নতুন ফিল্টারড ও নিখুঁত সার্চ ফাংশন
+function getRecentPostsForQuery(userQuery) {
+    if (!postDatabase['all_posts'] || postDatabase['all_posts'].length === 0) {
+        return [];
+    }
+
+    const cleanQuery = userQuery.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (cleanQuery.length < 2) return [];
+
+    const twentyFourHoursAgo = Date.now() - (24 * 60 * 60 * 1000);
+
+    // হুবহু সার্চ করা গেম ম্যাচ করার ফিল্টার
+    let matched = postDatabase['all_posts'].filter(post => {
+        if (!post.text) return false;
+        let cleanText = post.text.toLowerCase().replace(/[^a-z0-9]/g, '');
+        return cleanText.includes(cleanQuery);
+    });
+
+    if (matched.length === 0) return [];
+
+    // সাম্প্রতিক সময় অনুযায়ী সাজানো
+    matched.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+    // শুধুমাত্র ২৪ ঘণ্টার মধ্যে থাকা পোস্ট ফিল্টার করা
+    let recent24h = matched.filter(p => p.timestamp && p.timestamp >= twentyFourHoursAgo);
+
+    if (recent24h.length > 0) {
+        return recent24h.slice(0, 2); // সর্বোচ্চ ১-২ টি নতুন পোস্ট
+    } else {
+        // টাইমস্ট্যাম্প ছাড়া থাকলে শুধু ১টি লেটেস্ট পোস্ট দেখাবে
+        let latest = matched[0];
+        if (!latest.timestamp) {
+            return [latest];
+        }
+        return []; // ২৪ ঘণ্টার পুরনো পোস্ট হলে দেখাবে না
+    }
+}
+
 bot.on('message', (msg) => {
     const chatId = msg.chat.id;
     const text = msg.text;
@@ -307,31 +327,20 @@ bot.on('message', (msg) => {
         } else if (text.startsWith('/restore')) {
             restorePostsToChannel(chatId);
         } else {
-            const query = text.trim().toLowerCase().replace(/[^a-z0-9._]/g, '');
-            let foundPosts = [];
-
-            if (postDatabase[query] && postDatabase[query].length > 0) {
-                foundPosts = postDatabase[query];
-            } else {
-                for (let key in postDatabase) {
-                    if (key.includes(query) || query.includes(key)) {
-                        if (Array.isArray(postDatabase[key])) {
-                            postDatabase[key].forEach(p => {
-                                if (!foundPosts.some(existing => existing.text === p.text)) {
-                                    foundPosts.push(p);
-                                }
-                            });
-                        }
-                    }
-                }
-            }
+            let foundPosts = getRecentPostsForQuery(text);
 
             if (foundPosts.length > 0) {
                 foundPosts.forEach(post => {
                     sendPostToUser(chatId, post);
                 });
             } else {
-                bot.sendMessage(chatId, `No promo code or post found for "${text}".`);
+                // গেম না পাওয়া গেলে বা ২৪ ঘণ্টা পার হয়ে গেলে ইংলিশ মেসেজ
+                const notFoundMessage = `<b>⚠️ Promo Code Currently Unavailable!</b>\n\n` +
+                    `The promo code for <b>"${text.trim()}"</b> is not available right now or has not arrived yet.\n\n` +
+                    `🔄 <b>Please search again after some time!</b> New promo codes are updated regularly.\n\n` +
+                    `📢 <i>Note: This bot provides promo codes for <b>Official Yono Games</b> only. No other unrelated games are available here.</i>`;
+                
+                bot.sendMessage(chatId, notFoundMessage, { parse_mode: "HTML" });
             }
         }
     }
@@ -357,4 +366,4 @@ function sendPostToUser(userId, post) {
     }
 }
 
-console.log("Bot running with full UI alignment and welcome message update...");
+console.log("Bot running with strict game search, 24h filter & English fallback message...");
