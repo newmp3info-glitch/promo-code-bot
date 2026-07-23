@@ -54,7 +54,7 @@ function smartFormatPost(text, entities) {
         return text; 
     }
 
-    // ডাউনলোড লিংক বের করার লজিক (অপরিবর্তিত)
+    // ডাউনলোড লিংক বের করার লজিক (সম্পূর্ণ অপরিবর্তিত)
     let downloadUrl = '';
     if (entities && entities.length > 0) {
         entities.forEach(entity => {
@@ -86,13 +86,14 @@ function smartFormatPost(text, entities) {
     let lines = text.split('\n');
     let formattedLines = [];
     let hashtags = [];
-    let isFirstLine = true;
+    let nonEmtpyCount = 0;
 
     lines.forEach(line => {
         let trimmed = line.trim();
         if (!trimmed) return;
         let lower = trimmed.toLowerCase();
 
+        // ১. হ্যাশট্যাগ ফিল্টার
         if (trimmed.startsWith('#')) {
             let tags = trimmed.match(/#\w+/g);
             if (tags) {
@@ -100,10 +101,20 @@ function smartFormatPost(text, entities) {
                     if (!hashtags.includes(t)) hashtags.push(t);
                 });
             }
-        } 
-        // ১. প্রমো কোড ট্যাপ করলে কপির জন্য (অপরিবর্তিত)
-        else if (lower.includes('code') && !lower.startsWith('http') && !lower.includes('app link')) {
-            isFirstLine = false;
+            return;
+        }
+
+        nonEmtpyCount++;
+
+        // ২. সর্বউপরের গেমের নাম / টাইটেল লাইনটি ১০০% বোল্ড হবে
+        if (nonEmtpyCount === 1) {
+            let cleanLine = trimmed.replace(/<[^>]*>/g, '');
+            formattedLines.push(`<b>${cleanLine}</b>`);
+            return;
+        }
+
+        // ৩. প্রমো কোড ট্যাপ করলে কপির জন্য (অপরিবর্তিত)
+        if (lower.includes('code') && !lower.startsWith('http') && !lower.includes('app link') && !lower.includes('join this channel') && !lower.includes('never miss')) {
             let parts = trimmed.split(/➔|->|➜|:/);
             if (parts.length > 1) {
                 let label = parts[0].trim();
@@ -115,9 +126,8 @@ function smartFormatPost(text, entities) {
                 formattedLines.push(`<code>${safeTrimmed}</code>`);
             }
         } 
-        // ২. ডাউনলোড লিংক (অপরিবর্তিত)
-        else if (lower.includes('download now') || lower.includes('link')) {
-            isFirstLine = false;
+        // ৪. ডাউনলোড লিংক (অপরিবর্তিত)
+        else if (lower.includes('download now') || lower.includes('game link') || lower.includes('link')) {
             if (downloadUrl) {
                 if (lower.includes('download now')) {
                     let replacedLine = trimmed.replace(/download now/gi, `<a href="${downloadUrl}"><b>Download Now</b></a>`);
@@ -129,18 +139,24 @@ function smartFormatPost(text, entities) {
                 formattedLines.push(trimmed);
             }
         } 
-        // ৩. সর্বউপরের গেমের নাম / টাইটেল লাইনটি বোল্ড হবে
-        else if (isFirstLine) {
-            isFirstLine = false;
-            formattedLines.push(`<b>${trimmed}</b>`);
-        }
-        // ৪. মিনিমাম উইথড্রল লাইনটি বোল্ড হবে
+        // ৫. মিনিমাম উইথড্রল লাইনটি বোল্ড হবে
         else if (lower.includes('minimum') || lower.includes('withdrawal')) {
-            formattedLines.push(`<b>${trimmed}</b>`);
+            let cleanLine = trimmed.replace(/<[^>]*>/g, '');
+            formattedLines.push(`<b>${cleanLine}</b>`);
         } 
-        // ৫. নিউ ইউজার বোনাস এবং চ্যানেল জয়েন করার লাইন দুটি Quote Box এ থাকবে
-        else if (lower.includes('signup bonus') || lower.includes('new users') || lower.includes('join this channel') || lower.includes('pin this channel')) {
-            formattedLines.push(`<blockquote>${trimmed.replace(/<[^>]*>/g, '')}</blockquote>`);
+        // ৬. নিউ ইউজার বোনাস এবং নিচের জয়েন চ্যানেল মেসেজ দুটোই Quote Box-এ থাকবে
+        else if (
+            lower.includes('signup bonus') || 
+            lower.includes('new users') || 
+            lower.includes('join this channel') || 
+            lower.includes('pin this channel') ||
+            lower.includes('never miss') ||
+            lower.includes('important promo code') ||
+            trimmed.startsWith('🔥') ||
+            trimmed.startsWith('🎁')
+        ) {
+            let cleanLine = trimmed.replace(/<[^>]*>/g, '');
+            formattedLines.push(`<blockquote>${cleanLine}</blockquote>`);
         } 
         else {
             formattedLines.push(trimmed);
@@ -286,7 +302,8 @@ bot.on('message', (msg) => {
 
     if (text) {
         if (text.startsWith('/start')) {
-            bot.sendMessage(chatId, "Welcome! Send any game name or promo keyword to get its post.", { parse_mode: "Markdown" });
+            const welcomeText = `<b>Welcome to the Official Promo Code Bot!</b>\n\n<b>⚠️ Notice:</b> Here you will get Only Yono Promo Code. No other games or unrelated content will be provided here.\n\n🚀 All updates and promo codes for any new Yono games will be available here first!\n\n📢 <b>How to get codes instantly:</b>\n• Whenever you join, you will automatically receive new posts.\n• Need codes right now? Just type and search the game name in the chat. The bot will instantly send you the available promo codes right away!`;
+            bot.sendMessage(chatId, welcomeText, { parse_mode: "HTML" });
         } else if (text.startsWith('/restore')) {
             restorePostsToChannel(chatId);
         } else {
@@ -340,4 +357,4 @@ function sendPostToUser(userId, post) {
     }
 }
 
-console.log("Bot running with updated layout matching exact user preferences...");
+console.log("Bot running with full UI alignment and welcome message update...");
