@@ -46,7 +46,7 @@ server.listen(PORT, () => {
     console.log(`Server is listening on port ${PORT}`);
 });
 
-// স্মার্ট ফরম্যাটিং ফাংশন (যেকোনো ধরণের প্রমো/ভিআইপি কোডকে কপি-ফ্রেন্ডলি করবে এবং লিংক হওয়া আটকাবে)
+// স্মার্ট ফরম্যাটিং ফাংশন
 function smartFormatPost(text, entities) {
     if (!text) return '';
 
@@ -54,6 +54,7 @@ function smartFormatPost(text, entities) {
         return text; 
     }
 
+    // নির্ভুলভাবে লিঙ্ক এক্সট্র্যাক্ট করার লজিক
     let downloadUrl = '';
     if (entities && entities.length > 0) {
         entities.forEach(entity => {
@@ -61,12 +62,17 @@ function smartFormatPost(text, entities) {
                 if (!entity.url.includes('t.me') && !entity.url.includes('telegram')) {
                     downloadUrl = entity.url;
                 }
+            } else if (entity.type === 'url') {
+                let extractedUrl = text.substring(entity.offset, entity.offset + entity.length);
+                if (extractedUrl && !extractedUrl.includes('t.me') && !extractedUrl.includes('telegram')) {
+                    downloadUrl = extractedUrl;
+                }
             }
         });
     }
 
     if (!downloadUrl) {
-        let urlMatch = text.match(/(https?:\/\/[^\s]+)/g);
+        let urlMatch = text.match(/(https?:\/\/[^\s<]+)/g);
         if (urlMatch) {
             for (let u of urlMatch) {
                 if (!u.includes('t.me') && !u.includes('telegram')) {
@@ -93,25 +99,30 @@ function smartFormatPost(text, entities) {
                 });
             }
         } 
-        // যেকোনো লাইনে 'code' থাকলে (যেমন: VIP 0-20 code, promo code) সেটিকে ধরবে, তবে মূল অ্যাপ ডাউনলোড লিংকে ধরবে না
+        // প্রমো কোড ট্যাপ করলে কপির জন্য
         else if (lower.includes('code') && !lower.startsWith('http') && !lower.includes('app link')) {
             let parts = trimmed.split(/➔|->|➜|:/);
             if (parts.length > 1) {
                 let label = parts[0].trim();
                 let rawCode = parts.slice(1).join(':').replace(/<[^>]*>/g, '').replace(/`/g, '').trim();
                 
-                // ডট ( . ) এর পর অদৃশ্য অক্ষর যুক্ত করা যাতে টেলিগ্রাম এটিকে লিংক না বানায়
                 let safeCode = rawCode.replace(/\./g, '.\u200B');
-                
                 formattedLines.push(`<b>${label}</b>: <code>${safeCode}</code>`);
             } else {
                 let safeTrimmed = trimmed.replace(/\./g, '.\u200B');
                 formattedLines.push(`<code>${safeTrimmed}</code>`);
             }
         } 
+        // ডাউনলোড লিংকের পেছনে ক্লিক্যাবল URL যুক্ত করার লজিক
         else if (lower.includes('download now') || lower.includes('app link') || lower.includes('link ::') || lower.includes('link:')) {
             if (downloadUrl) {
-                formattedLines.push(`<b>🎰 GAME LINK </b> <a href='${downloadUrl}'>☞ 𝗗𝗼𝘄𝗻𝗹𝗼𝗮𝗱 𝗡𝗼𝘄</a>📱`);
+                if (lower.includes('download now')) {
+                    // অরিজিনাল লাইনের Download Now লেখাকে ক্লিক্যাবল হাইপারলিংকে রূপান্তর করা
+                    let replacedLine = trimmed.replace(/download now/gi, `<a href="${downloadUrl}"><b>Download Now</b></a>`);
+                    formattedLines.push(replacedLine);
+                } else {
+                    formattedLines.push(`<b>🎰 GAME LINK </b> ➜ <a href="${downloadUrl}"><b>Download Now</b></a>📱`);
+                }
             } else {
                 formattedLines.push(trimmed);
             }
@@ -132,7 +143,7 @@ function smartFormatPost(text, entities) {
     return formattedLines.join('\n\n');
 }
 
-// সকল ইউজারের কাছে অটোমেটিক ব্রডকাস্টের ফাংশন
+// অটোমেটিক ব্রডকাস্ট ফাংশন
 function broadcastPostToAllUsers(post) {
     if (!botUsers || botUsers.length === 0) return;
 
@@ -318,4 +329,4 @@ function sendPostToUser(userId, post) {
     }
 }
 
-console.log("Bot running successfully with promo code fix & auto broadcast...");
+console.log("Bot running with full functionality (Download link, Promo code fix & Broadcast)...");
