@@ -1,6 +1,7 @@
 const TelegramBot = require('node-telegram-bot-api');
 const http = require('http');
 const fs = require('fs');
+const cron = require('node-cron'); // অটোমেটিক টাইমারের জন্য যুক্ত করা হলো
 
 const token = process.env.BOT_TOKEN;
 const bot = new TelegramBot(token, { polling: true });
@@ -26,7 +27,7 @@ function savePosts() {
 let botUsers = [];
 if (fs.existsSync(USERS_FILE)) {
     try {
-        botUsers = JSON.parse(USERS_FILE, 'utf8');
+        botUsers = JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
     } catch (e) {
         botUsers = [];
     }
@@ -335,14 +336,14 @@ bot.on('message', (msg) => {
                 });
             } else {
                 // ইউজারদের অল ইওনো গেম সার্চে এনগেজ রাখার জন্য আল্ট্রা-আকর্ষণীয় মেসেজ
-const notFoundMessage = `🔥 <b>EXCLUSIVE CODE IS GENERATING...</b> 🔥\n\n` +
-    `⚡ The VIP promo code for <b>"${text.trim()}"</b> is currently being refreshed and will drop very soon!\n\n` +
-    `💡 <b>DON'T JUST WAIT! DO THIS RIGHT NOW:</b>\n` +
-    `• 🎮 Don't wait for just this one game! Search for <b>ANY OTHER YONO GAME</b> in the chat right now!\n` +
-    `• 💰 Hundreds of live promo codes for other Yono games are active & ready to claim!\n` +
-    `• 🔔 Keep notifications <b>ON</b> so you don't miss the fast drop.\n` +
-    `• ⏳ Search for <b>"${text.trim()}"</b> again in <b>2 to 5 minutes</b> to grab it first!\n\n` +
-    `👑 <i>This is your #1 Official Hub for <b>ALL YONO GAMES & ALL VIP CODES!</b> 🚀</i>`;
+                const notFoundMessage = `🔥 <b>EXCLUSIVE CODE IS GENERATING...</b> 🔥\n\n` +
+                    `⚡ The VIP promo code for <b>"${text.trim()}"</b> is currently being refreshed and will drop very soon!\n\n` +
+                    `💡 <b>DON'T JUST WAIT! DO THIS RIGHT NOW:</b>\n` +
+                    `• 🎮 Don't wait for just this one game! Search for <b>ANY OTHER YONO GAME</b> in the chat right now!\n` +
+                    `• 💰 Hundreds of live promo codes for other Yono games are active & ready to claim!\n` +
+                    `• 🔔 Keep notifications <b>ON</b> so you don't miss the fast drop.\n` +
+                    `• ⏳ Search for <b>"${text.trim()}"</b> again in <b>2 to 5 minutes</b> to grab it first!\n\n` +
+                    `👑 <i>This is your #1 Official Hub for <b>ALL YONO GAMES & ALL VIP CODES!</b> 🚀</i>`;
 
                 bot.sendMessage(chatId, notFoundMessage, { parse_mode: "HTML" });
             }
@@ -370,4 +371,29 @@ function sendPostToUser(userId, post) {
     }
 }
 
-console.log("Bot running with strict game search, 24h filter & English fallback message...");
+// ==========================================
+// 🔄 প্রতি ৭ দিনে স্বয়ংক্রিয় অটো-মেসেজ লজিক
+// ==========================================
+const weeklyMessage = `⚡ <b>WEEKLY VIP BONUS ALERT!</b> ⚡\n\n` +
+    `🎁 <b>New Yono Promo Codes Are Now Live!</b>\n\n` +
+    `Hey Gamer! Hundreds of fresh & active promo codes for <b>ALL YONO GAMES</b> have just been updated! Don't let your free bonuses expire! 💰\n\n` +
+    `🔥 <b>WHAT TO DO RIGHT NOW:</b>\n` +
+    `• 🎮 Type & search <b>ANY Yono Game Name</b> in this chat right now!\n` +
+    `• 💎 Claim your daily signup & deposit promo codes instantly!\n` +
+    `• 🔔 Keep your notifications <b>ON</b> so you never miss a fast-claim code drop!\n\n` +
+    `👑 <i>Type your favorite game name below and grab your free code now! 🚀</i>`;
+
+// প্রতি রবিবার সকাল ১০টায় অটোমেটিক ইউজারদের কাছে মেসেজ যাবে ('0 10 * * 0')
+cron.schedule('0 10 * * 0', () => {
+    console.log('Sending weekly promo code message to all users...');
+    if (botUsers && botUsers.length > 0) {
+        botUsers.forEach((userId, index) => {
+            setTimeout(() => {
+                bot.sendMessage(userId, weeklyMessage, { parse_mode: 'HTML', disable_web_page_preview: true })
+                    .catch(err => console.log(`User ${userId} blocked the bot or failed.`));
+            }, index * 40); // স্মুথ ডেলিভারির জন্য টাইমিং
+        });
+    }
+});
+
+console.log("Bot running with strict game search, 24h filter, weekly auto-message & English fallback message...");
