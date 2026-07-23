@@ -46,16 +46,15 @@ server.listen(PORT, () => {
     console.log(`Server is listening on port ${PORT}`);
 });
 
-// স্মার্ট ফরম্যাটিং ফাংশন (ডাউনলোড লিংক এবং প্রমো কোড নিখুঁত রাখার জন্য)
+// স্মার্ট ফরম্যাটিং ফাংশন
 function smartFormatPost(text, entities) {
     if (!text) return '';
 
-    // ভুল 'Download' শর্তটি এখান থেকে সরিয়ে দেওয়া হয়েছে
     if (text.includes('All Yono Apps') && !text.toLowerCase().includes('code')) {
         return text; 
     }
 
-    // চ্যানেলের পোস্ট থেকে আসল লিংক খুঁজে বের করার লজিক
+    // ডাউনলোড লিংক বের করার লজিক (অপরিবর্তিত)
     let downloadUrl = '';
     if (entities && entities.length > 0) {
         entities.forEach(entity => {
@@ -87,9 +86,11 @@ function smartFormatPost(text, entities) {
     let lines = text.split('\n');
     let formattedLines = [];
     let hashtags = [];
+    let isFirstLine = true;
 
     lines.forEach(line => {
         let trimmed = line.trim();
+        if (!trimmed) return;
         let lower = trimmed.toLowerCase();
 
         if (trimmed.startsWith('#')) {
@@ -100,8 +101,9 @@ function smartFormatPost(text, entities) {
                 });
             }
         } 
-        // প্রমো কোড ট্যাপ করলে কপির জন্য
+        // ১. প্রমো কোড ট্যাপ করলে কপির জন্য (অপরিবর্তিত)
         else if (lower.includes('code') && !lower.startsWith('http') && !lower.includes('app link')) {
+            isFirstLine = false;
             let parts = trimmed.split(/➔|->|➜|:/);
             if (parts.length > 1) {
                 let label = parts[0].trim();
@@ -113,8 +115,9 @@ function smartFormatPost(text, entities) {
                 formattedLines.push(`<code>${safeTrimmed}</code>`);
             }
         } 
-        // ডাউনলোড লিংকের পেছনে ক্লিক্যাবল URL যুক্ত করা
+        // ২. ডাউনলোড লিংক (অপরিবর্তিত)
         else if (lower.includes('download now') || lower.includes('link')) {
+            isFirstLine = false;
             if (downloadUrl) {
                 if (lower.includes('download now')) {
                     let replacedLine = trimmed.replace(/download now/gi, `<a href="${downloadUrl}"><b>Download Now</b></a>`);
@@ -126,12 +129,21 @@ function smartFormatPost(text, entities) {
                 formattedLines.push(trimmed);
             }
         } 
-        else if (trimmed !== '') {
-            if (lower.includes('signup bonus') || lower.includes('join this channel')) {
-                formattedLines.push(`<blockquote>${trimmed.replace(/<[^>]*>/g, '')}</blockquote>`);
-            } else if (!trimmed.startsWith('#')) {
-                formattedLines.push(trimmed);
-            }
+        // ৩. সর্বউপরের গেমের নাম / টাইটেল লাইনটি বোল্ড হবে
+        else if (isFirstLine) {
+            isFirstLine = false;
+            formattedLines.push(`<b>${trimmed}</b>`);
+        }
+        // ৪. মিনিমাম উইথড্রল লাইনটি বোল্ড হবে
+        else if (lower.includes('minimum') || lower.includes('withdrawal')) {
+            formattedLines.push(`<b>${trimmed}</b>`);
+        } 
+        // ৫. নিউ ইউজার বোনাস এবং চ্যানেল জয়েন করার লাইন দুটি Quote Box এ থাকবে
+        else if (lower.includes('signup bonus') || lower.includes('new users') || lower.includes('join this channel') || lower.includes('pin this channel')) {
+            formattedLines.push(`<blockquote>${trimmed.replace(/<[^>]*>/g, '')}</blockquote>`);
+        } 
+        else {
+            formattedLines.push(trimmed);
         }
     });
 
@@ -328,4 +340,4 @@ function sendPostToUser(userId, post) {
     }
 }
 
-console.log("Bot running with full functionality and link fix...");
+console.log("Bot running with updated layout matching exact user preferences...");
