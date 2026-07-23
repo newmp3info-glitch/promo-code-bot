@@ -97,7 +97,7 @@ function smartFormatPost(text, entities) {
             let parts = trimmed.split(/➔|->/);
             if (parts.length > 1) {
                 let codeValue = parts[1].replace(/<[^>]*>/g, '').replace(/`|<.*?>/g, '').trim();
-                formattedLines.push(`<b>🎟️ PROMO CODE </b> ➜ <code>${codeValue}</code>`);
+                formattedLines.push(`<b>🎟️ PROMO CODE </b> ➜ <code><mono>${codeValue}</mono></code>`);
             } else {
                 formattedLines.push(trimmed);
             }
