@@ -26,7 +26,7 @@ function savePosts() {
 let botUsers = [];
 if (fs.existsSync(USERS_FILE)) {
     try {
-        botUsers = JSON.parse(USERS_FILE, 'utf8');
+        botUsers = JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
     } catch (e) {
         botUsers = [];
     }
@@ -96,11 +96,7 @@ function smartFormatPost(text, entities) {
             let parts = trimmed.split(/➔|->|➜|:/);
             if (parts.length > 1) {
                 let rawCode = parts[1].replace(/<[^>]*>/g, '').replace(/`/g, '').trim();
-                
-                // ডট (.) এর সাথে অদৃশ্য অক্ষর যুক্ত করা যাতে টেলিগ্রাম এটিকে লিংক না বানিয়ে দেয়
                 let safeCode = rawCode.replace(/\./g, '.\u200B');
-                
-                // শুধুমাত্র <code> ট্যাগ ব্যবহার করা হয়েছে যা টাচ করলেই কপি হয়ে যাবে
                 formattedLines.push(`<b>🎟️ PROMO CODE </b> ➜ <code>${safeCode}</code>`);
             } else {
                 let safeTrimmed = trimmed.replace(/\./g, '.\u200B');
@@ -130,6 +126,36 @@ function smartFormatPost(text, entities) {
     return formattedLines.join('\n\n');
 }
 
+// সকল ইউজারের কাছে অটোমেটিক পোস্ট পাঠানোর ফাংশন
+function broadcastPostToAllUsers(post) {
+    if (!botUsers || botUsers.length === 0) return;
+
+    console.log(`Broadcasting new post to ${botUsers.length} users...`);
+
+    const options = { 
+        parse_mode: "HTML",
+        disable_web_page_preview: true 
+    };
+    if (post.replyMarkup) {
+        options.reply_markup = post.replyMarkup;
+    }
+
+    // রেট-লিমিটিং এড়াতে প্রতিটি মেসেজের মাঝে ৪০ms এর ডিলে রাখা হয়েছে
+    botUsers.forEach((userId, index) => {
+        setTimeout(() => {
+            if (post.photo) {
+                bot.sendPhoto(userId, post.photo, { caption: post.text, ...options }).catch(err => {
+                    console.error(`Failed to send to ${userId}:`, err.message);
+                });
+            } else if (post.text) {
+                bot.sendMessage(userId, post.text, options).catch(err => {
+                    console.error(`Failed to send to ${userId}:`, err.message);
+                });
+            }
+        }, index * 40); 
+    });
+}
+
 function savePostContent(msg) {
     let rawText = msg.caption || msg.text || '';
     let entities = msg.caption_entities || msg.entities || [];
@@ -140,8 +166,10 @@ function savePostContent(msg) {
     const photo = msg.photo ? msg.photo[msg.photo.length - 1].file_id : null;
     const replyMarkup = msg.reply_markup || null;
     
+    let postContent = null;
+
     if (text || photo) {
-        const postContent = {
+        postContent = {
             text: text,
             photo: photo,
             replyMarkup: replyMarkup || null
@@ -173,12 +201,18 @@ function savePostContent(msg) {
             savePosts();
         }
     }
+
+    return postContent;
 }
 
+// চ্যানেলে নতুন পোস্ট আসামাত্র ডাটাবেসে সেভ হবে এবং অটো-ব্রডকাস্ট হবে
 bot.on('channel_post', (msg) => {
     const chatUsername = msg.chat.username ? `@${msg.chat.username.toLowerCase()}` : '';
     if (chatUsername === TARGET_CHANNEL.toLowerCase()) {
-        savePostContent(msg);
+        const newPost = savePostContent(msg);
+        if (newPost) {
+            broadcastPostToAllUsers(newPost);
+        }
     }
 });
 
@@ -280,4 +314,4 @@ function sendPostToUser(userId, post) {
     }
 }
 
-console.log("Bot with intact links and formatting is running successfully...");
+console.log("Bot with auto-broadcast functionality is running successfully...");
