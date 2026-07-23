@@ -26,7 +26,7 @@ function savePosts() {
 let botUsers = [];
 if (fs.existsSync(USERS_FILE)) {
     try {
-        botUsers = JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
+        botUsers = JSON.parse(USERS_FILE, 'utf8');
     } catch (e) {
         botUsers = [];
     }
@@ -46,11 +46,11 @@ server.listen(PORT, () => {
     console.log(`Server is listening on port ${PORT}`);
 });
 
-// স্মার্ট ফরম্যাটিং ফাংশন
+// স্মার্ট ফরম্যাটিং ফাংশন (যেকোনো ধরণের প্রমো/ভিআইপি কোডকে কপি-ফ্রেন্ডলি করবে এবং লিংক হওয়া আটকাবে)
 function smartFormatPost(text, entities) {
     if (!text) return '';
 
-    if (text.includes('All Yono Apps') || text.includes('Download') || (text.split('\n').length > 5 && !text.includes('PROMO CODE'))) {
+    if (text.includes('All Yono Apps') || text.includes('Download') || (text.split('\n').length > 5 && !text.toLowerCase().includes('code'))) {
         return text; 
     }
 
@@ -83,6 +83,7 @@ function smartFormatPost(text, entities) {
 
     lines.forEach(line => {
         let trimmed = line.trim();
+        let lower = trimmed.toLowerCase();
 
         if (trimmed.startsWith('#')) {
             let tags = trimmed.match(/#\w+/g);
@@ -92,18 +93,23 @@ function smartFormatPost(text, entities) {
                 });
             }
         } 
-        else if (trimmed.toLowerCase().includes('promo code')) {
+        // যেকোনো লাইনে 'code' থাকলে (যেমন: VIP 0-20 code, promo code) সেটিকে ধরবে, তবে মূল অ্যাপ ডাউনলোড লিংকে ধরবে না
+        else if (lower.includes('code') && !lower.startsWith('http') && !lower.includes('app link')) {
             let parts = trimmed.split(/➔|->|➜|:/);
             if (parts.length > 1) {
-                let rawCode = parts[1].replace(/<[^>]*>/g, '').replace(/`/g, '').trim();
+                let label = parts[0].trim();
+                let rawCode = parts.slice(1).join(':').replace(/<[^>]*>/g, '').replace(/`/g, '').trim();
+                
+                // ডট ( . ) এর পর অদৃশ্য অক্ষর যুক্ত করা যাতে টেলিগ্রাম এটিকে লিংক না বানায়
                 let safeCode = rawCode.replace(/\./g, '.\u200B');
-                formattedLines.push(`<b>🎟️ PROMO CODE </b> ➜ <code>${safeCode}</code>`);
+                
+                formattedLines.push(`<b>${label}</b>: <code>${safeCode}</code>`);
             } else {
                 let safeTrimmed = trimmed.replace(/\./g, '.\u200B');
                 formattedLines.push(`<code>${safeTrimmed}</code>`);
             }
         } 
-        else if (trimmed.toLowerCase().includes('download now') || trimmed.toLowerCase().includes('link')) {
+        else if (lower.includes('download now') || lower.includes('app link') || lower.includes('link ::') || lower.includes('link:')) {
             if (downloadUrl) {
                 formattedLines.push(`<b>🎰 GAME LINK </b> <a href='${downloadUrl}'>☞ 𝗗𝗼𝘄𝗻𝗹𝗼𝗮𝗱 𝗡𝗼𝘄</a>📱`);
             } else {
@@ -111,7 +117,7 @@ function smartFormatPost(text, entities) {
             }
         } 
         else if (trimmed !== '') {
-            if (trimmed.toLowerCase().includes('signup bonus') || trimmed.toLowerCase().includes('join this channel')) {
+            if (lower.includes('signup bonus') || lower.includes('join this channel')) {
                 formattedLines.push(`<blockquote>${trimmed.replace(/<[^>]*>/g, '')}</blockquote>`);
             } else if (!trimmed.startsWith('#')) {
                 formattedLines.push(trimmed);
@@ -126,7 +132,7 @@ function smartFormatPost(text, entities) {
     return formattedLines.join('\n\n');
 }
 
-// সকল ইউজারের কাছে অটোমেটিক পোস্ট পাঠানোর ফাংশন
+// সকল ইউজারের কাছে অটোমেটিক ব্রডকাস্টের ফাংশন
 function broadcastPostToAllUsers(post) {
     if (!botUsers || botUsers.length === 0) return;
 
@@ -140,7 +146,6 @@ function broadcastPostToAllUsers(post) {
         options.reply_markup = post.replyMarkup;
     }
 
-    // রেট-লিমিটিং এড়াতে প্রতিটি মেসেজের মাঝে ৪০ms এর ডিলে রাখা হয়েছে
     botUsers.forEach((userId, index) => {
         setTimeout(() => {
             if (post.photo) {
@@ -205,7 +210,6 @@ function savePostContent(msg) {
     return postContent;
 }
 
-// চ্যানেলে নতুন পোস্ট আসামাত্র ডাটাবেসে সেভ হবে এবং অটো-ব্রডকাস্ট হবে
 bot.on('channel_post', (msg) => {
     const chatUsername = msg.chat.username ? `@${msg.chat.username.toLowerCase()}` : '';
     if (chatUsername === TARGET_CHANNEL.toLowerCase()) {
@@ -314,4 +318,4 @@ function sendPostToUser(userId, post) {
     }
 }
 
-console.log("Bot with auto-broadcast functionality is running successfully...");
+console.log("Bot running successfully with promo code fix & auto broadcast...");
