@@ -46,11 +46,10 @@ server.listen(PORT, () => {
     console.log(`Server is listening on port ${PORT}`);
 });
 
-// স্মার্ট ফরম্যাটিং ফাংশন: লিস্ট পোস্ট হলে লিংক ও টেক্সট অক্ষুণ্ণ রাখবে, আর প্রমো কোড পোস্ট হলে সেটিকে কপি-ফ্রেন্ডلی করবে
+// স্মার্ট ফরম্যাটিং ফাংশন
 function smartFormatPost(text, entities) {
     if (!text) return '';
 
-    // যদি পোস্টটি "All Yono Apps" বা গেমের লিস্ট হয়, তবে কোনো কাটছাঁট ছাড়াই অরিজিনাল টেক্সট ও লিংক হুবহু রাখা হবে
     if (text.includes('All Yono Apps') || text.includes('Download') || (text.split('\n').length > 5 && !text.includes('PROMO CODE'))) {
         return text; 
     }
@@ -93,13 +92,19 @@ function smartFormatPost(text, entities) {
                 });
             }
         } 
-        else if (trimmed.toLowerCase().includes('promo code') && (trimmed.includes('➔') || trimmed.includes('->') || trimmed.includes('PROMO CODE'))) {
-            let parts = trimmed.split(/➔|->/);
+        else if (trimmed.toLowerCase().includes('promo code')) {
+            let parts = trimmed.split(/➔|->|➜|:/);
             if (parts.length > 1) {
-                let codeValue = parts[1].replace(/<[^>]*>/g, '').replace(/`|<.*?>/g, '').trim();
-                formattedLines.push(`<b>🎟️ PROMO CODE </b> ➜ <code><mono>${codeValue}</mono></code>`);
+                let rawCode = parts[1].replace(/<[^>]*>/g, '').replace(/`/g, '').trim();
+                
+                // ডট (.) এর সাথে অদৃশ্য অক্ষর যুক্ত করা যাতে টেলিগ্রাম এটিকে লিংক না বানিয়ে দেয়
+                let safeCode = rawCode.replace(/\./g, '.\u200B');
+                
+                // শুধুমাত্র <code> ট্যাগ ব্যবহার করা হয়েছে যা টাচ করলেই কপি হয়ে যাবে
+                formattedLines.push(`<b>🎟️ PROMO CODE </b> ➜ <code>${safeCode}</code>`);
             } else {
-                formattedLines.push(trimmed);
+                let safeTrimmed = trimmed.replace(/\./g, '.\u200B');
+                formattedLines.push(`<code>${safeTrimmed}</code>`);
             }
         } 
         else if (trimmed.toLowerCase().includes('download now') || trimmed.toLowerCase().includes('link')) {
@@ -183,7 +188,10 @@ function restorePostsToChannel(chatId) {
         
         postDatabase['all_posts'].forEach((post, index) => {
             setTimeout(() => {
-                const options = { parse_mode: "HTML" };
+                const options = { 
+                    parse_mode: "HTML",
+                    disable_web_page_preview: true 
+                };
                 if (post.replyMarkup) {
                     options.reply_markup = post.replyMarkup;
                 }
@@ -253,7 +261,10 @@ bot.on('message', (msg) => {
 });
 
 function sendPostToUser(userId, post) {
-    const options = { parse_mode: "HTML" };
+    const options = { 
+        parse_mode: "HTML",
+        disable_web_page_preview: true 
+    };
     if (post.replyMarkup) {
         options.reply_markup = post.replyMarkup;
     }
