@@ -334,12 +334,16 @@ bot.on('message', (msg) => {
                     sendPostToUser(chatId, post);
                 });
             } else {
-                // গেম না পাওয়া গেলে বা ২৪ ঘণ্টা পার হয়ে গেলে ইংলিশ মেসেজ
-                const notFoundMessage = `<b>⚠️ Promo Code Currently Unavailable!</b>\n\n` +
-                    `The promo code for <b>"${text.trim()}"</b> is not available right now or has not arrived yet.\n\n` +
-                    `🔄 <b>Please search again after some time!</b> New promo codes are updated regularly.\n\n` +
-                    `📢 <i>Note: This bot provides promo codes for <b>Official Yono Games</b> only. No other unrelated games are available here.</i>`;
-                
+                // ইউজারদের অল ইওনো গেম সার্চে এনগেজ রাখার জন্য আল্ট্রা-আকর্ষণীয় মেসেজ
+const notFoundMessage = `🔥 <b>EXCLUSIVE CODE IS GENERATING...</b> 🔥\n\n` +
+    `⚡ The VIP promo code for <b>"${text.trim()}"</b> is currently being refreshed and will drop very soon!\n\n` +
+    `💡 <b>DON'T JUST WAIT! DO THIS RIGHT NOW:</b>\n` +
+    `• 🎮 Don't wait for just this one game! Search for <b>ANY OTHER YONO GAME</b> in the chat right now!\n` +
+    `• 💰 Hundreds of live promo codes for other Yono games are active & ready to claim!\n` +
+    `• 🔔 Keep notifications <b>ON</b> so you don't miss the fast drop.\n` +
+    `• ⏳ Search for <b>"${text.trim()}"</b> again in <b>2 to 5 minutes</b> to grab it first!\n\n` +
+    `👑 <i>This is your #1 Official Hub for <b>ALL YONO GAMES & ALL VIP CODES!</b> 🚀</i>`;
+
                 bot.sendMessage(chatId, notFoundMessage, { parse_mode: "HTML" });
             }
         }
