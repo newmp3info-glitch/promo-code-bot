@@ -46,15 +46,16 @@ server.listen(PORT, () => {
     console.log(`Server is listening on port ${PORT}`);
 });
 
-// স্মার্ট ফরম্যাটিং ফাংশন
+// স্মার্ট ফরম্যাটিং ফাংশন (ডাউনলোড লিংক এবং প্রমো কোড নিখুঁত রাখার জন্য)
 function smartFormatPost(text, entities) {
     if (!text) return '';
 
-    if (text.includes('All Yono Apps') || text.includes('Download') || (text.split('\n').length > 5 && !text.toLowerCase().includes('code'))) {
+    // ভুল 'Download' শর্তটি এখান থেকে সরিয়ে দেওয়া হয়েছে
+    if (text.includes('All Yono Apps') && !text.toLowerCase().includes('code')) {
         return text; 
     }
 
-    // নির্ভুলভাবে লিঙ্ক এক্সট্র্যাক্ট করার লজিক
+    // চ্যানেলের পোস্ট থেকে আসল লিংক খুঁজে বের করার লজিক
     let downloadUrl = '';
     if (entities && entities.length > 0) {
         entities.forEach(entity => {
@@ -105,7 +106,6 @@ function smartFormatPost(text, entities) {
             if (parts.length > 1) {
                 let label = parts[0].trim();
                 let rawCode = parts.slice(1).join(':').replace(/<[^>]*>/g, '').replace(/`/g, '').trim();
-                
                 let safeCode = rawCode.replace(/\./g, '.\u200B');
                 formattedLines.push(`<b>${label}</b>: <code>${safeCode}</code>`);
             } else {
@@ -113,11 +113,10 @@ function smartFormatPost(text, entities) {
                 formattedLines.push(`<code>${safeTrimmed}</code>`);
             }
         } 
-        // ডাউনলোড লিংকের পেছনে ক্লিক্যাবল URL যুক্ত করার লজিক
-        else if (lower.includes('download now') || lower.includes('app link') || lower.includes('link ::') || lower.includes('link:')) {
+        // ডাউনলোড লিংকের পেছনে ক্লিক্যাবল URL যুক্ত করা
+        else if (lower.includes('download now') || lower.includes('link')) {
             if (downloadUrl) {
                 if (lower.includes('download now')) {
-                    // অরিজিনাল লাইনের Download Now লেখাকে ক্লিক্যাবল হাইপারলিংকে রূপান্তর করা
                     let replacedLine = trimmed.replace(/download now/gi, `<a href="${downloadUrl}"><b>Download Now</b></a>`);
                     formattedLines.push(replacedLine);
                 } else {
@@ -329,4 +328,4 @@ function sendPostToUser(userId, post) {
     }
 }
 
-console.log("Bot running with full functionality (Download link, Promo code fix & Broadcast)...");
+console.log("Bot running with full functionality and link fix...");
