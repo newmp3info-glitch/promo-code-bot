@@ -7,7 +7,7 @@ const token = process.env.BOT_TOKEN;
 const bot = new TelegramBot(token, { polling: true });
 
 // Target channel username
-const TARGET_CHANNEL = '@AllYonoRummyCode';
+const TARGET_CHANNEL = '@VipYonoFreeCode';
 
 const POSTS_FILE = 'posts.json';
 const USERS_FILE = 'users.json';
