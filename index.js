@@ -62,14 +62,12 @@ async function sendSingleMessage(chatId, text, photo, replyMarkup) {
     let sentMsg = null;
 
     try {
-        // ১. প্রথমে নতুন মেসেজটি পাঠিয়ে দেব (যাতে স্ক্রিন খালি না হয়ে যায় বা ফ্লিকার না করে)
         if (photo) {
             sentMsg = await bot.sendPhoto(chatId, photo, { caption: text, ...options });
         } else if (text) {
             sentMsg = await bot.sendMessage(chatId, text, options);
         }
 
-        // ২. নতুন মেসেজ সফলভাবে চলে আসার পর পুরনো মেসেজগুলো ডিলিট করব
         if (sentMsg) {
             if (userMessages[chatId] && userMessages[chatId].length > 0) {
                 for (let oldMsgId of userMessages[chatId]) {
@@ -384,6 +382,13 @@ bot.on('message', async (msg) => {
 
                 await sendSingleMessage(chatId, notFoundMessage, null, null);
             }
+
+            // ৪. ইউজারের টাইপ করা সার্চ মেসেজটি রেসপন্স আসার ৫ সেকেন্ড পর অটোমেটিক ডিলিট করে দেবে, যাতে চ্যাট পরিষ্কার থাকে
+            setTimeout(async () => {
+                try {
+                    await bot.deleteMessage(chatId, msg.message_id);
+                } catch (e) {}
+            }, 5000);
         }
     }
 });
@@ -407,4 +412,4 @@ cron.schedule('0 10 * * 0', () => {
     }
 });
 
-console.log("Bot running with seamless zero-flicker message replacement logic!");
+console.log("Bot running with auto-delete search query feature and clean chat history!");
