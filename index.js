@@ -324,6 +324,7 @@ bot.on('message', async (msg) => {
     // Normal message / Search handling
     if (text) {
         if (text.startsWith('/start')) {
+            // ১. ব্যবহারকারীর পাঠানো /start কমান্ডটি অবিলম্বে ডিলিট করা
             try { await bot.deleteMessage(chatId, msg.message_id); } catch (e) {}
 
             const welcomeText = `<b>Welcome to the Official Promo Code Bot!</b>\n\n<b>⚠️ Notice:</b> Here you will get Only Yono Promo Code. No other games or unrelated content will be provided here.\n\n🚀 All updates and promo codes for any new Yono games will be available here first!\n\n📢 <b>How to get codes instantly:</b>\n• Whenever you join, you will automatically receive new posts.\n• Need codes right now? Just type and search the game name in the chat. The bot will instantly send you the available promo codes right away!`;
@@ -331,11 +332,11 @@ bot.on('message', async (msg) => {
             try {
                 let newMsgIds = [];
 
-                // ১. প্রথমে নতুন ওয়েলকাম মেসেজ পাঠাব
+                // ২. নতুন ওয়েলকাম মেসেজ পাঠানো
                 let textMsg = await bot.sendMessage(chatId, welcomeText, { parse_mode: "HTML", disable_web_page_preview: true });
                 if (textMsg) newMsgIds.push(textMsg.message_id);
 
-                // ২. ভয়েস নোট পাঠাব
+                // ৩. ভয়েস নোট পাঠানো
                 let cachedVoiceId = '';
                 if (fs.existsSync(VOICE_ID_FILE)) {
                     cachedVoiceId = fs.readFileSync(VOICE_ID_FILE, 'utf8').trim();
@@ -353,7 +354,7 @@ bot.on('message', async (msg) => {
 
                 if (voiceMsg) newMsgIds.push(voiceMsg.message_id);
 
-                // ৩. নতুন মেসেজগুলো সফলভাবে যাওয়ার পর পুরনো মেসেজগুলো ডিলিট করব
+                // ৪. পুরনো মেসেজগুলো পরিষ্কার করা
                 if (userMessages[chatId] && userMessages[chatId].length > 0) {
                     for (let oldMsgId of userMessages[chatId]) {
                         try { await bot.deleteMessage(chatId, oldMsgId); } catch (e) {}
@@ -383,12 +384,12 @@ bot.on('message', async (msg) => {
                 await sendSingleMessage(chatId, notFoundMessage, null, null);
             }
 
-            // ৪. ইউজারের টাইপ করা সার্চ মেসেজটি রেসপন্স আসার ৫ সেকেন্ড পর অটোমেটিক ডিলিট করে দেবে, যাতে চ্যাট পরিষ্কার থাকে
+            // ৫. ইউজারের টাইপ করা সার্চ মেসেজটি ৩.৫ সেকেন্ড (3500ms) পর অটোমেটিক ডিলিট হবে
             setTimeout(async () => {
                 try {
                     await bot.deleteMessage(chatId, msg.message_id);
                 } catch (e) {}
-            }, 5000);
+            }, 3500);
         }
     }
 });
@@ -412,4 +413,4 @@ cron.schedule('0 10 * * 0', () => {
     }
 });
 
-console.log("Bot running with auto-delete search query feature and clean chat history!");
+console.log("Bot running with optimized 3.5s search delete timer and clean start flow!");
