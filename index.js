@@ -351,7 +351,7 @@ bot.on('message', async (msg) => {
 
                 if (voiceMsg) newMsgIds.push(voiceMsg.message_id);
 
-                // ৩. নতুন মেসেজগুলো স্ক্রিনে আসার পরে ইউজারের /start কমান্ড এবং পুরনো মেসেজগুলো ডিলিট করা (চ্যাট কখনোই খালি হবে না, তাই Start বাটন আর আসবে না!)
+                // ৩. নতুন মেসেজগুলো আসার পরে ইউজারের /start কমান্ড এবং পুরনো মেসেজগুলো ডিলিট করা
                 try { await bot.deleteMessage(chatId, msg.message_id); } catch (e) {}
 
                 if (userMessages[chatId] && userMessages[chatId].length > 0) {
@@ -383,12 +383,12 @@ bot.on('message', async (msg) => {
                 await sendSingleMessage(chatId, notFoundMessage, null, null);
             }
 
-            // ৪. ইউজারের টাইপ করা সার্চ মেসেজটি ৩.৫ সেকেন্ড (3500ms) পর অটোমেটিক ডিলিট হবে
+            // ৪. ইউজারের টাইপ করা সার্চ মেসেজটি ১.৫ সেকেন্ড (1500ms) পর অটোমেটিক ডিলিট হবে
             setTimeout(async () => {
                 try {
                     await bot.deleteMessage(chatId, msg.message_id);
                 } catch (e) {}
-            }, 3500);
+            }, 1500);
         }
     }
 });
@@ -412,4 +412,4 @@ cron.schedule('0 10 * * 0', () => {
     }
 });
 
-console.log("Bot running with smooth start flow (no start button glitch) & 3.5s search delete!");
+console.log("Bot running with flawless start flow & 1.5s fast search-delete timer!");
