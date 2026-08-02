@@ -63,7 +63,6 @@ async function sendSingleMessage(chatId, text, photo, replyMarkup) {
 
     try {
         if (photo) {
-            // টেলিগ্রামের ১০২৪ ক্যারেক্টার লিমি트 হ্যান্ডেল করার জন্য সেফটি চেক (ডিজাইন বা টেমপ্লেট অপরিবর্তিত রেখে)
             if (text && text.length > 1024) {
                 await bot.sendPhoto(chatId, photo, { reply_markup: replyMarkup });
                 sentMsg = await bot.sendMessage(chatId, text, options);
@@ -252,8 +251,11 @@ function savePostContent(msg) {
         if (!postDatabase.all_posts) {
             postDatabase.all_posts = [];
         }
-        const globalExists = postDatabase.all_posts.some(p => p.text === text);
-        if (!globalExists) {
+        
+        // এখানে শুধুমাত্র টেক্সট (text) চেক করা হচ্ছে। ছবি (photo) বা অন্য কিছু স্ক্যান করা হচ্ছে না।
+        // ফলে একই ছবি বারবার থাকলেও টেক্সটে সামান্য পরিবর্তন (যেমন www. যোগ করা) থাকলেই তা নতুন হিসেবে সেভ হবে।
+        const textExists = postDatabase.all_posts.some(p => p.text === text);
+        if (!textExists) {
             postDatabase.all_posts.push(postContent);
             savePosts();
             return true;
@@ -414,4 +416,4 @@ cron.schedule('0 10 * * 0', () => {
     }
 });
 
-console.log("Bot running with flawless start flow & 1.5s search-delete timer!");
+console.log("Bot running with text-only duplication check & reusable photos support!");
