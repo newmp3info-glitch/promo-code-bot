@@ -6,16 +6,12 @@ const cron = require('node-cron');
 const token = process.env.BOT_TOKEN;
 const bot = new TelegramBot(token, { polling: true });
 
-// Target channel username
 const TARGET_CHANNEL = '@VipYonoFreeCode';
 
 const POSTS_FILE = 'posts.json';
 const USERS_FILE = 'users.json';
 const VOICE_ID_FILE = 'voice_id.txt';
 
-// ==========================================
-// Database Safety & Persistence Logic
-// ==========================================
 if (!fs.existsSync(POSTS_FILE)) {
     fs.writeFileSync(POSTS_FILE, JSON.stringify({ all_posts: [] }, null, 2));
 }
@@ -47,9 +43,6 @@ function saveUsers() {
     fs.writeFileSync(USERS_FILE, JSON.stringify(botUsers, null, 2));
 }
 
-// ==========================================
-// Single-Message Screen Manager (Zero Flicker)
-// ==========================================
 let userMessages = {}; 
 
 async function sendSingleMessage(chatId, text, photo, replyMarkup) {
@@ -90,7 +83,6 @@ async function sendSingleMessage(chatId, text, photo, replyMarkup) {
     }
 }
 
-// Web Server Setup
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end('Bot is running successfully!\n');
@@ -101,7 +93,6 @@ server.listen(PORT, () => {
     console.log(`Server is listening on port ${PORT}`);
 });
 
-// Smart formatting function (আপনার নিজস্ব অরিজিনাল টেমপ্লেট ও ডিজাইন)
 function smartFormatPost(text, entities) {
     if (!text) return '';
 
@@ -232,17 +223,18 @@ function savePostContent(msg) {
     let rawText = msg.caption || msg.text || '';
     let entities = msg.caption_entities || msg.entities || [];
     
-    let text = smartFormatPost(rawText, entities);
-    if (!text) text = rawText;
+    let formattedText = smartFormatPost(rawText, entities);
+    if (!formattedText) formattedText = rawText;
     
     const photo = msg.photo ? msg.photo[msg.photo.length - 1].file_id : null;
     const replyMarkup = msg.reply_markup || null;
     
     let postContent = null;
 
-    if (text || photo) {
+    if (formattedText || photo) {
         postContent = {
-            text: text,
+            rawText: rawText,
+            text: formattedText,
             photo: photo,
             replyMarkup: replyMarkup || null,
             timestamp: Date.now()
@@ -252,9 +244,7 @@ function savePostContent(msg) {
             postDatabase.all_posts = [];
         }
         
-        // এখানে শুধুমাত্র টেক্সট (text) চেক করা হচ্ছে। ছবি (photo) বা অন্য কিছু স্ক্যান করা হচ্ছে না।
-        // ফলে একই ছবি বারবার থাকলেও টেক্সটে সামান্য পরিবর্তন (যেমন www. যোগ করা) থাকলেই তা নতুন হিসেবে সেভ হবে।
-        const textExists = postDatabase.all_posts.some(p => p.text === text);
+        const textExists = postDatabase.all_posts.some(p => p.rawText === rawText);
         if (!textExists) {
             postDatabase.all_posts.push(postContent);
             savePosts();
@@ -302,9 +292,6 @@ function getLatestPostForQuery(userQuery) {
     return matched[0];
 }
 
-// ==========================================
-// Message Handler & Secure Forward Logic
-// ==========================================
 bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
     const text = msg.text;
@@ -314,7 +301,6 @@ bot.on('message', async (msg) => {
         saveUsers();
     }
 
-    // Security check: Only save forwarded messages from TARGET_CHANNEL
     if (msg.forward_from_chat) {
         const forwardedChannelUsername = msg.forward_from_chat.username ? `@${msg.forward_from_chat.username.toLowerCase()}` : '';
 
@@ -329,7 +315,6 @@ bot.on('message', async (msg) => {
         }
     }
 
-    // Normal message / Search handling
     if (text) {
         if (text.startsWith('/start')) {
             const welcomeText = `<b>Welcome to the Official Promo Code Bot!</b>\n\n<b>⚠️ Notice:</b> Here you will get Only Yono Promo Code. No other games or unrelated content will be provided here.\n\n🚀 All updates and promo codes for any new Yono games will be available here first!\n\n📢 <b>How to get codes instantly:</b>\n• Whenever you join, you will automatically receive new posts.\n• Need codes right now? Just type and search the game name in the chat. The bot will instantly send you the available promo codes right away!`;
@@ -416,4 +401,4 @@ cron.schedule('0 10 * * 0', () => {
     }
 });
 
-console.log("Bot running with text-only duplication check & reusable photos support!");
+console.log("Bot running with strict rawText check and clean code!");
