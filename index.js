@@ -219,6 +219,14 @@ function broadcastPostToAllUsers(post) {
     });
 }
 
+// Helper function to extract a unique game key from post text to manage single post per game
+function getGameIdentifier(text) {
+    if (!text) return '';
+    let firstLine = text.split('\n')[0].toLowerCase();
+    let cleanGame = firstLine.replace(/->|➔|➜/g, ' ').split('new promo')[0].split('promo')[0].trim();
+    return cleanGame.replace(/[^a-z0-9]/g, '');
+}
+
 function savePostContent(msg) {
     let rawText = msg.caption || msg.text || '';
     let entities = msg.caption_entities || msg.entities || [];
@@ -229,10 +237,22 @@ function savePostContent(msg) {
     const photo = msg.photo ? msg.photo[msg.photo.length - 1].file_id : null;
     const replyMarkup = msg.reply_markup || null;
     
-    let postContent = null;
-
     if (formattedText || photo) {
-        postContent = {
+        // Prevent exact duplicate inserts
+        const textExists = postDatabase.all_posts.some(p => p.rawText === rawText);
+        if (textExists) {
+            return false;
+        }
+
+        // Automatically remove older posts for the exact same game so only the newest one remains
+        const gameKey = getGameIdentifier(rawText);
+        if (gameKey && gameKey.length > 2) {
+            postDatabase.all_posts = postDatabase.all_posts.filter(p => {
+                return getGameIdentifier(p.rawText) !== gameKey;
+            });
+        }
+
+        let postContent = {
             rawText: rawText,
             text: formattedText,
             photo: photo,
@@ -244,12 +264,9 @@ function savePostContent(msg) {
             postDatabase.all_posts = [];
         }
         
-        const textExists = postDatabase.all_posts.some(p => p.rawText === rawText);
-        if (!textExists) {
-            postDatabase.all_posts.push(postContent);
-            savePosts();
-            return true;
-        }
+        postDatabase.all_posts.push(postContent);
+        savePosts();
+        return true;
     }
 
     return false;
@@ -401,4 +418,4 @@ cron.schedule('0 10 * * 0', () => {
     }
 });
 
-console.log("Bot running with strict rawText check and clean code!");
+console.log("Bot running with single-post-per-game replacement logic!");
