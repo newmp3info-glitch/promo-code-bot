@@ -156,42 +156,37 @@ function smartFormatPost(text, entities) {
             return;
         }
 
-        if (
+        let isGameListItem = trimmed.startsWith('•') || trimmed.startsWith('▪️') || trimmed.startsWith('🔸');
+
+        let isDownloadLine = (lower.includes('download now') || lower.includes('game link') || (lower.includes('link') && !lower.includes('promo')));
+        
+        let isQuoteLine = !isGameListItem && !isDownloadLine && (
             lower.includes('signup bonus') || 
             lower.includes('new users') || 
-            lower.includes('join') || 
-            lower.includes('pin') || 
-            lower.includes('channel') ||
-            lower.includes('never miss') ||
-            lower.includes('important') ||
+            lower.includes('join & pin') || 
+            lower.includes('claim all extra special code') ||
             lower.includes('daily promo codes') ||
             trimmed.startsWith('🔥') ||
             trimmed.startsWith('🎁') ||
-            trimmed.startsWith('📢') ||
-            trimmed.startsWith('•')
-        ) {
+            trimmed.startsWith('📢')
+        );
+
+        if (isGameListItem) {
+            let cleanItem = trimmed.replace(/<[^>]*>/g, '');
+            formattedLines.push(cleanItem);
+        }
+        else if (isQuoteLine) {
             let cleanLine = trimmed.replace(/<[^>]*>/g, '');
             formattedLines.push(`<blockquote><b>${cleanLine}</b></blockquote>`);
         } 
-        else if (lower.includes('code') && !lower.startsWith('http') && !lower.includes('app link') && !lower.includes('join') && !lower.includes('pin') && !lower.includes('channel')) {
-            let parts = trimmed.split(/➔|->|➜|:/);
-            if (parts.length > 1) {
-                let label = parts[0].trim();
-                let rawCode = parts.slice(1).join(':').replace(/<[^>]*>/g, '').replace(/`/g, '').trim();
-                let safeCode = rawCode.replace(/\./g, '.\u200B');
-                formattedLines.push(`<b>${label}</b> ➜ <code>${safeCode}</code>`);
-            } else {
-                let safeTrimmed = trimmed.replace(/\./g, '.\u200B');
-                formattedLines.push(`➜ <code>${safeTrimmed}</code>`);
-            }
-        } 
-        else if (lower.includes('download now') || lower.includes('game link') || lower.includes('link')) {
+        else if (isDownloadLine) {
             if (downloadUrl) {
-                if (lower.includes('download now')) {
-                    let replacedLine = trimmed.replace(/download now/gi, `<a href="${downloadUrl}"><b>Download Now</b></a>`);
-                    formattedLines.push(replacedLine);
+                let cleanLine = trimmed.replace(/<[^>]*>/g, '').replace(/Download Now/gi, '').replace(/📱/g, '').trim();
+                let labelPart = cleanLine.replace(/➔|->|➜/g, '').trim();
+                if (!labelPart || labelPart.toLowerCase().includes('game link') || labelPart.toLowerCase().includes('link')) {
+                    formattedLines.push(`<b>🎰 GAME LINK</b> ➜ <a href="${downloadUrl}"><b>Download Now</b></a>📱`);
                 } else {
-                    formattedLines.push(`<b>🎰 GAME LINK </b> ➜ <a href="${downloadUrl}"><b>Download Now</b></a>📱`);
+                    formattedLines.push(`<b>${labelPart}</b> ➜ <a href="${downloadUrl}"><b>Download Now</b></a>📱`);
                 }
             } else {
                 formattedLines.push(trimmed);
@@ -202,7 +197,30 @@ function smartFormatPost(text, entities) {
             formattedLines.push(`<b>${cleanLine}</b>`);
         } 
         else {
-            formattedLines.push(trimmed);
+            // ডোমেন, ইউআরএল বা প্রমো কোড লাইনগুলোকে নিখوঁতভাবে কোড ট্যাগে রূপান্তর করার লজিক
+            if (trimmed.includes('➔') || trimmed.includes('->') || trimmed.includes('➜')) {
+                let parts = trimmed.split(/➔|->|➜/);
+                if (parts.length === 2) {
+                    let label = parts[0].replace(/<[^>]*>/g, '').trim();
+                    let codeOrDomain = parts[1].replace(/<[^>]*>/g, '').trim();
+                    let safeCode = codeOrDomain.replace(/\./g, '.\u200B');
+                    formattedLines.push(`<b>${label}</b> ➜ <code>${safeCode}</code>`);
+                    return;
+                }
+            }
+
+            if (!trimmed.includes(' ') && (trimmed.includes('.') || lower.includes('http'))) {
+                let cleanCode = trimmed.replace(/<[^>]*>/g, '').replace(/`/g, '').trim();
+                let safeCode = cleanCode.replace(/\./g, '.\u200B');
+                formattedLines.push(`<code>${safeCode}</code>`);
+                return;
+            }
+
+            let formattedLine = trimmed.replace(/(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9][-a-zA-Z0-9]*\.[a-zA-Z0-9][-a-zA-Z0-9]*[^\s]*\.(com|win|net|top|app|vip|in|store|club|xyz|buzz|bet)[^\s]*)/gi, (match) => {
+                return `<code>${match.replace(/\./g, '.\u200B')}</code>`;
+            });
+
+            formattedLines.push(formattedLine);
         }
     });
 
@@ -419,4 +437,4 @@ cron.schedule('0 10 * * 0', () => {
     }
 });
 
-console.log("Bot running with bold blockquote text formatting!");
+console.log("Bot running with ultimate anti-link protection for all domains and codes!");
